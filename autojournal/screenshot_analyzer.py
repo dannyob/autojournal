@@ -1,0 +1,225 @@
+"""Screenshot capture and AI analysis"""
+
+import subprocess
+import tempfile
+import json
+from datetime import datetime
+from pathlib import Path
+from typing import List, Optional
+import platform
+
+from .models import Task, ActivityAnalysis, JournalEntry
+
+
+class ScreenshotAnalyzer:
+    """Captures screenshots and analyzes current activity using AI"""
+    
+    def __init__(self):
+        self.screenshot_dir = Path.home() / ".autojournal" / "screenshots"
+        self.screenshot_dir.mkdir(parents=True, exist_ok=True)
+    
+    def _take_screenshot(self) -> Optional[Path]:
+        """Take a screenshot and return the file path"""
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        screenshot_path = self.screenshot_dir / f"screenshot_{timestamp}.png"
+        
+        try:
+            system = platform.system()
+            
+            if system == "Darwin":  # macOS
+                subprocess.run([
+                    "screencapture", "-x", "-t", "png", str(screenshot_path)
+                ], check=True)
+            elif system == "Linux":
+                subprocess.run([
+                    "gnome-screenshot", "-f", str(screenshot_path)
+                ], check=True)
+            elif system == "Windows":
+                # Use PowerShell for Windows
+                ps_script = f"""
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
+$Screen = [System.Windows.Forms.SystemInformation]::VirtualScreen
+$bitmap = New-Object System.Drawing.Bitmap $Screen.Width, $Screen.Height
+$graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+$graphics.CopyFromScreen($Screen.Left, $Screen.Top, 0, 0, $bitmap.Size)
+$bitmap.Save('{screenshot_path}')
+"""
+                subprocess.run([
+                    "powershell", "-Command", ps_script
+                ], check=True)
+            else:
+                print(f"Unsupported platform: {system}")
+                return None
+                
+            return screenshot_path
+            
+        except subprocess.CalledProcessError as e:
+            print(f"Failed to take screenshot: {e}")
+            return None
+        except Exception as e:
+            print(f"Error taking screenshot: {e}")
+            return None
+    
+    def _get_active_application(self) -> str:
+        """Get the name of the currently active application"""
+        try:
+            system = platform.system()
+            
+            if system == "Darwin":  # macOS
+                script = '''
+                tell application "System Events"
+                    set frontApp to name of first application process whose frontmost is true
+                end tell
+                return frontApp
+                '''
+                result = subprocess.run([
+                    "osascript", "-e", script
+                ], capture_output=True, text=True, check=True)
+                return result.stdout.strip()
+                
+            elif system == "Linux":
+                # Try different methods for Linux
+                try:
+                    result = subprocess.run([
+                        "xdotool", "getactivewindow", "getwindowname"
+                    ], capture_output=True, text=True, check=True)
+                    return result.stdout.strip()
+                except:
+                    try:
+                        result = subprocess.run([
+                            "xprop", "-id", "$(xprop -root _NET_ACTIVE_WINDOW | cut -d' ' -f5)", "WM_CLASS"
+                        ], capture_output=True, text=True, check=True, shell=True)
+                        return result.stdout.strip()
+                    except:
+                        return "Unknown"
+                        
+            elif system == "Windows":
+                ps_script = '''
+                Add-Type @"
+                using System;
+                using System.Runtime.InteropServices;
+                using System.Text;
+                public class Win32 {
+                    [DllImport("user32.dll")]
+                    public static extern IntPtr GetForegroundWindow();
+                    [DllImport("user32.dll")]
+                    public static extern int GetWindowText(IntPtr hWnd, StringBuilder text, int count);
+                }
+"@
+                $hwnd = [Win32]::GetForegroundWindow()
+                $text = New-Object System.Text.StringBuilder(256)
+                [Win32]::GetWindowText($hwnd, $text, $text.Capacity)
+                $text.ToString()
+                '''
+                result = subprocess.run([
+                    "powershell", "-Command", ps_script
+                ], capture_output=True, text=True, check=True)
+                return result.stdout.strip()
+            
+        except Exception as e:
+            print(f"Error getting active application: {e}")
+            
+        return "Unknown"
+    
+    async def analyze_current_activity(self, current_task: Optional[Task], 
+                                     recent_entries: List[JournalEntry]) -> ActivityAnalysis:
+        """Analyze current screen activity and determine if user is on-task"""
+        
+        # Take screenshot
+        screenshot_path = self._take_screenshot()
+        active_app = self._get_active_application()
+        
+        # Prepare context for AI analysis
+        task_context = ""
+        if current_task:
+            task_context = f"Current task: {current_task.description} (estimated {current_task.estimated_time_minutes} minutes)"
+        
+        recent_context = ""
+        if recent_entries:
+            recent_context = "Recent activity:\n"
+            for entry in recent_entries[-3:]:  # Last 3 entries
+                recent_context += f"- {entry.content}\n"
+        
+        prompt = f"""
+Analyze the current screen activity and determine what the user is doing.
+
+{task_context}
+
+Active application: {active_app}
+
+{recent_context}
+
+Based on the active application and context, provide analysis in JSON format:
+{{
+    "description": "Brief description of what the user appears to be doing",
+    "is_on_task": true/false,
+    "progress_estimate": 0-100,
+    "confidence": 0.0-1.0
+}}
+
+If the active application suggests they're working on the current task, set is_on_task to true.
+If they appear to be browsing social media, checking email unnecessarily, or doing other non-work activities, set is_on_task to false.
+Estimate progress as a percentage of the current task completion.
+"""
+        
+        try:
+            # For now, analyze without the screenshot image (would need vision model)
+            # Future enhancement: use vision-capable model with screenshot
+            result = subprocess.run([
+                'llm', prompt
+            ], capture_output=True, text=True, check=True)
+            
+            analysis_data = json.loads(result.stdout.strip())
+            
+            return ActivityAnalysis(
+                timestamp=datetime.now(),
+                description=analysis_data['description'],
+                current_app=active_app,
+                is_on_task=analysis_data['is_on_task'],
+                progress_estimate=analysis_data['progress_estimate'],
+                confidence=analysis_data['confidence']
+            )
+            
+        except Exception as e:
+            print(f"Error analyzing activity: {e}")
+            # Fallback analysis
+            is_on_task = self._simple_app_analysis(active_app)
+            return ActivityAnalysis(
+                timestamp=datetime.now(),
+                description=f"Using {active_app}",
+                current_app=active_app,
+                is_on_task=is_on_task,
+                progress_estimate=0,
+                confidence=0.5
+            )
+    
+    def _simple_app_analysis(self, app_name: str) -> bool:
+        """Simple heuristic to determine if app suggests on-task behavior"""
+        app_lower = app_name.lower()
+        
+        # Common productivity apps
+        productivity_apps = [
+            'vscode', 'code', 'vim', 'emacs', 'sublime', 'atom', 'intellij',
+            'pycharm', 'webstorm', 'terminal', 'iterm', 'cmd', 'powershell',
+            'bash', 'finder', 'explorer', 'notes', 'notion', 'obsidian',
+            'docs', 'word', 'excel', 'sheets', 'calendar'
+        ]
+        
+        # Common distraction apps
+        distraction_apps = [
+            'facebook', 'twitter', 'instagram', 'tiktok', 'youtube',
+            'netflix', 'spotify', 'discord', 'slack', 'whatsapp',
+            'messages', 'mail', 'gmail', 'games', 'steam'
+        ]
+        
+        for prod_app in productivity_apps:
+            if prod_app in app_lower:
+                return True
+                
+        for dist_app in distraction_apps:
+            if dist_app in app_lower:
+                return False
+        
+        # Default to on-task for unknown apps
+        return True
