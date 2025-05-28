@@ -45,7 +45,7 @@ class AutoJournal:
         self.current_task = selected_task
         
         # Update task status in goals list
-        from .models import TaskStatus
+        from autojournal.models import TaskStatus
         self.goal_manager.update_task_status(self.current_task, TaskStatus.IN_PROGRESS)
         
         # Save updated goals to file
@@ -107,7 +107,7 @@ class AutoJournal:
         """Temporarily pause the current task"""
         if self.current_task:
             # Update task status in goals list
-            from .models import TaskStatus
+            from autojournal.models import TaskStatus
             self.goal_manager.update_task_status(self.current_task, TaskStatus.ON_HOLD)
             
             # Save updated goals to file
@@ -119,7 +119,7 @@ class AutoJournal:
         """Resume the current task from hold"""
         if self.current_task:
             # Update task status in goals list
-            from .models import TaskStatus
+            from autojournal.models import TaskStatus
             self.goal_manager.update_task_status(self.current_task, TaskStatus.IN_PROGRESS)
             
             # Save updated goals to file
