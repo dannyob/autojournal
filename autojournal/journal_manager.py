@@ -32,20 +32,28 @@ class JournalManager:
     
     def _update_current_task_display(self):
         """Update the ~/.current-task file for external display"""
-        if not self.current_task:
-            return
-            
         try:
-            content = f"Current: {self.current_task.description} | {self.current_task.progress_percentage}% | {self.current_task.estimated_time_minutes}min | {self.current_task.status.value}"
-            self.current_task_file.write_text(content)
-            
-            # Write debug info to separate file for verification
             debug_file = Path.home() / ".autojournal-debug.log"
             with open(debug_file, "a") as f:
                 from datetime import datetime
                 timestamp = datetime.now().strftime("%H:%M:%S")
-                f.write(f"{timestamp}: Updated current task: {content}\n")
+                
+                if not self.current_task:
+                    f.write(f"{timestamp}: _update_current_task_display called but no current task\n")
+                    return
+                
+                content = f"Current: {self.current_task.description} | {self.current_task.progress_percentage}% | {self.current_task.estimated_time_minutes}min | {self.current_task.status.value}"
+                f.write(f"{timestamp}: Writing to {self.current_task_file}: {content}\n")
+                
+                self.current_task_file.write_text(content)
+                f.write(f"{timestamp}: Successfully wrote current task file\n")
+                
         except Exception as e:
+            debug_file = Path.home() / ".autojournal-debug.log"
+            with open(debug_file, "a") as f:
+                from datetime import datetime
+                timestamp = datetime.now().strftime("%H:%M:%S")
+                f.write(f"{timestamp}: Error updating current task display: {e}\n")
             print(f"Error updating current task display: {e}")
     
     async def log_task_start(self, task: Task):

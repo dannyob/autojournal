@@ -51,7 +51,12 @@ class AutoJournal:
         # Save updated goals to file
         self.goal_manager.save_goals_to_file(self.goals_file)
         
+        # Set current task in journal manager - this should write to ~/.current-task
         self.journal_manager.set_current_task(self.current_task)
+        
+        # Force update of current task display to ensure file is written
+        self.journal_manager._update_current_task_display()
+        
         await self.journal_manager.log_task_start(self.current_task)
         
     async def run_monitoring_loop(self):

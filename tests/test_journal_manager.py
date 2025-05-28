@@ -43,7 +43,7 @@ class TestJournalManager:
         assert self.journal_manager.current_task_file.exists()
         content = self.journal_manager.current_task_file.read_text()
         assert "Test task" in content
-        assert "30 minutes" in content
+        assert "30min" in content
     
     @pytest.mark.asyncio
     async def test_log_task_start(self):
