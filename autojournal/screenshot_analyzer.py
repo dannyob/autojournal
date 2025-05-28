@@ -8,6 +8,11 @@ from pathlib import Path
 from typing import List, Optional
 import platform
 
+try:
+    import llm
+except ImportError:
+    llm = None
+
 from .models import Task, ActivityAnalysis, JournalEntry
 
 
@@ -164,13 +169,22 @@ Estimate progress as a percentage of the current task completion.
 """
         
         try:
+            if llm is None:
+                raise ImportError("llm library not available")
+            
             # For now, analyze without the screenshot image (would need vision model)
             # Future enhancement: use vision-capable model with screenshot
-            result = subprocess.run([
-                'llm', prompt
-            ], capture_output=True, text=True, check=True)
+            model = llm.get_model()
+            response = model.prompt(prompt)
+            response_text = response.text()
             
-            analysis_data = json.loads(result.stdout.strip())
+            # Try to extract JSON from response
+            import re
+            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+            if json_match:
+                analysis_data = json.loads(json_match.group())
+            else:
+                raise ValueError("No JSON found in response")
             
             return ActivityAnalysis(
                 timestamp=datetime.now(),

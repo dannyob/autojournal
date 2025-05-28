@@ -1,11 +1,15 @@
 """Goal management and AI-powered goal breakdown"""
 
 import re
-import subprocess
 import json
 from pathlib import Path
 from typing import List, Optional
 from datetime import datetime
+
+try:
+    import llm
+except ImportError:
+    llm = None
 
 from .models import Goal, Task, TaskStatus, JournalEntry
 
@@ -50,17 +54,12 @@ class GoalManager:
     
     async def break_down_goal(self, goal: Goal) -> List[Task]:
         """Use LLM to break down a goal into actionable sub-tasks"""
-        prompt = f"""
-Break down this goal into 3-5 specific, actionable sub-tasks that can be completed in 15-60 minutes each.
+        prompt = f"""Break down this goal into 3-5 specific, actionable sub-tasks that can be completed in 15-60 minutes each.
 
 Goal: {goal.title}
 Description: {goal.description}
 
-For each sub-task, provide:
-1. A clear, specific description of what needs to be done
-2. Estimated time in minutes
-
-Format your response as JSON with this structure:
+Respond with ONLY valid JSON in this exact format:
 {{
     "tasks": [
         {{
@@ -68,19 +67,29 @@ Format your response as JSON with this structure:
             "estimated_time_minutes": 30
         }}
     ]
-}}
-"""
+}}"""
         
         try:
-            # Use llm command line tool
-            result = subprocess.run(
-                ['llm', prompt],
-                capture_output=True,
-                text=True,
-                check=True
-            )
+            if llm is None:
+                raise ImportError("llm library not available")
             
-            response_data = json.loads(result.stdout.strip())
+            # Use the llm Python library with default model
+            try:
+                model = llm.get_model()  # Use default model
+                response = model.prompt(prompt)
+                response_text = response.text()
+            except Exception as model_error:
+                print(f"LLM model error: {model_error}")
+                raise model_error
+            
+            # Try to extract JSON from the response
+            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+            if json_match:
+                json_text = json_match.group()
+                response_data = json.loads(json_text)
+            else:
+                raise ValueError("No JSON found in response")
+            
             tasks = []
             
             for task_data in response_data.get('tasks', []):
@@ -95,13 +104,38 @@ Format your response as JSON with this structure:
             
         except Exception as e:
             print(f"Error breaking down goal: {e}")
-            # Fallback: create a single task from the goal
-            fallback_task = Task(
-                description=f"Work on: {goal.title}",
-                estimated_time_minutes=45
-            )
-            goal.sub_tasks = [fallback_task]
-            return [fallback_task]
+            # Fallback: create sub-tasks based on goal content
+            fallback_tasks = self._create_fallback_tasks(goal)
+            goal.sub_tasks = fallback_tasks
+            return fallback_tasks
+    
+    def _create_fallback_tasks(self, goal: Goal) -> List[Task]:
+        """Create fallback tasks when LLM fails"""
+        if not goal.description or goal.description == goal.title:
+            # Simple goal, create basic tasks
+            return [
+                Task(f"Start working on: {goal.title}", 30),
+                Task(f"Continue progress on: {goal.title}", 30),
+                Task(f"Complete: {goal.title}", 30)
+            ]
+        else:
+            # Try to break down based on content
+            sentences = goal.description.split('.')
+            tasks = []
+            
+            # Create tasks based on sentences or use defaults
+            if len(sentences) > 1:
+                for i, sentence in enumerate(sentences[:5]):
+                    if sentence.strip():
+                        tasks.append(Task(
+                            f"Work on: {sentence.strip()[:50]}...",
+                            30 + (i * 10)  # Varying time estimates
+                        ))
+            
+            if not tasks:
+                tasks = [Task(f"Work on: {goal.title}", 45)]
+            
+            return tasks
     
     def get_next_task(self) -> Optional[Task]:
         """Get the next pending task"""
@@ -139,14 +173,12 @@ Keep the summary concise but actionable.
 """
         
         try:
-            result = subprocess.run(
-                ['llm', prompt],
-                capture_output=True,
-                text=True,
-                check=True
-            )
+            if llm is None:
+                return "LLM library not available for summary generation"
             
-            return result.stdout.strip()
+            model = llm.get_model()
+            response = model.prompt(prompt)
+            return response.text()
             
         except Exception as e:
             return f"Error generating summary: {e}"

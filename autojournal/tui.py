@@ -140,6 +140,8 @@ class AutoJournalTUI(App):
     def on_mount(self) -> None:
         """Set up the TUI when it starts"""
         self.set_interval(1.0, self.update_display)
+        # Start monitoring loop in background
+        self.set_interval(10.0, self.take_screenshot_and_analyze)
     
     def update_display(self) -> None:
         """Update the display with current information"""
@@ -218,6 +220,32 @@ class AutoJournalTUI(App):
         """End session and quit application"""
         asyncio.create_task(self.autojournal_app.end_session())
         self.exit()
+    
+    def take_screenshot_and_analyze(self) -> None:
+        """Take screenshot and analyze activity (called by timer)"""
+        try:
+            # Run the async analysis in a new event loop
+            import asyncio
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            
+            analysis = loop.run_until_complete(
+                self.autojournal_app.screenshot_analyzer.analyze_current_activity(
+                    self.autojournal_app.current_task,
+                    self.autojournal_app.journal_manager.get_recent_entries()
+                )
+            )
+            
+            # Log the analysis
+            loop.run_until_complete(
+                self.autojournal_app.journal_manager.log_activity(analysis)
+            )
+            
+            loop.close()
+            
+        except Exception as e:
+            # Don't crash the TUI if analysis fails
+            print(f"Analysis error: {e}")
     
     def run_app(self):
         """Run the TUI application"""

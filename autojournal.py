@@ -115,7 +115,7 @@ class AutoJournal:
         self.running = False
 
 
-async def main():
+def main():
     parser = argparse.ArgumentParser(description="AutoJournal - Intelligent productivity tracking")
     parser.add_argument("goals_file", nargs="?", default="goals.md", 
                        help="Path to goals markdown file (default: goals.md)")
@@ -125,24 +125,25 @@ async def main():
     app = AutoJournal(args.goals_file)
     
     try:
-        await app.initialize()
+        # Create a new event loop for the entire application
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
         
-        # Run TUI in main thread and monitoring in background
-        monitor_task = asyncio.create_task(app.run_monitoring_loop())
+        # Initialize the app
+        loop.run_until_complete(app.initialize())
         
         # Run the TUI (this blocks until quit)
+        # The monitoring loop will run in the background via TUI updates
         app.tui.run()
         
-        # Stop monitoring when TUI exits
-        app.stop()
-        await monitor_task
+        loop.close()
         
     except KeyboardInterrupt:
-        await app.end_session()
+        print("\nSession interrupted")
     except Exception as e:
         print(f"Error: {e}")
         sys.exit(1)
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
