@@ -285,6 +285,15 @@ class AutoJournalTUI(App):
                                 loop.run_until_complete(
                                     self.autojournal_app.start_selected_task(selected_task)
                                 )
+                            except Exception as e:
+                                # Log errors to debug file
+                                debug_file = Path.home() / ".autojournal-debug.log"
+                                with open(debug_file, "a") as f:
+                                    from datetime import datetime
+                                    timestamp = datetime.now().strftime("%H:%M:%S")
+                                    f.write(f"{timestamp}: ERROR in start_task thread: {e}\n")
+                                    import traceback
+                                    traceback.print_exception(type(e), e, e.__traceback__, file=f)
                             finally:
                                 loop.close()
                         
@@ -413,6 +422,15 @@ class AutoJournalTUI(App):
                                 loop.run_until_complete(
                                     self.autojournal_app.start_selected_task(selected_task)
                                 )
+                            except Exception as e:
+                                # Log errors to debug file
+                                debug_file = Path.home() / ".autojournal-debug.log"
+                                with open(debug_file, "a") as f:
+                                    from datetime import datetime
+                                    timestamp = datetime.now().strftime("%H:%M:%S")
+                                    f.write(f"{timestamp}: ERROR in start_new_task thread: {e}\n")
+                                    import traceback
+                                    traceback.print_exception(type(e), e, e.__traceback__, file=f)
                             finally:
                                 loop.close()
                         

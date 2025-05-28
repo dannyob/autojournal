@@ -38,6 +38,13 @@ class JournalManager:
         try:
             content = f"Current: {self.current_task.description} | {self.current_task.progress_percentage}% | {self.current_task.estimated_time_minutes}min | {self.current_task.status.value}"
             self.current_task_file.write_text(content)
+            
+            # Write debug info to separate file for verification
+            debug_file = Path.home() / ".autojournal-debug.log"
+            with open(debug_file, "a") as f:
+                from datetime import datetime
+                timestamp = datetime.now().strftime("%H:%M:%S")
+                f.write(f"{timestamp}: Updated current task: {content}\n")
         except Exception as e:
             print(f"Error updating current task display: {e}")
     

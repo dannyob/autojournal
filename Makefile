@@ -76,6 +76,14 @@ run:
 	fi
 	uv run python autojournal.py goals.md
 
+debug:
+	@echo "Starting AutoJournal with debug output..."
+	@if [ ! -f goals.md ]; then \
+		echo "No goals.md found. Creating sample goals file..."; \
+		make demo-goals; \
+	fi
+	uv run python autojournal.py --debug goals.md
+
 run-custom:
 	@if [ -z "$(GOALS)" ]; then \
 		echo "Usage: make run-custom GOALS=your-goals.md"; \

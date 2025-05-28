@@ -33,11 +33,15 @@ class GoalManager:
             return []
     
     def _parse_markdown_goals(self, content: str) -> List[Goal]:
-        """Parse goals from markdown content"""
+        """Parse goals from markdown content with sub-tasks"""
         goals = []
         
-        # Split by headers (# or ## or ###)
-        sections = re.split(r'\n#+\s+', content)
+        # Split by top-level headers only (# not ## or ###)
+        # Handle case where first goal doesn't have leading newline
+        if content.startswith('# '):
+            content = '\n' + content
+        
+        sections = re.split(r'\n# ', content)
         
         for section in sections[1:]:  # Skip first empty section
             lines = section.strip().split('\n')
@@ -45,9 +49,47 @@ class GoalManager:
                 continue
                 
             title = lines[0].strip()
-            description = '\n'.join(lines[1:]).strip() if len(lines) > 1 else title
             
+            # Find description and sub-tasks
+            description_lines = []
+            tasks = []
+            
+            i = 1
+            # Collect description until we hit checkboxes or end
+            while i < len(lines):
+                line = lines[i].strip()
+                if line.startswith('- [ ]') or line.startswith('- [x]') or line.startswith('- [X]'):
+                    break
+                if line:  # Only add non-empty lines
+                    description_lines.append(line)
+                i += 1
+            
+            # Collect sub-tasks from checkboxes
+            while i < len(lines):
+                line = lines[i].strip()
+                if line.startswith('- [ ]'):
+                    # Pending task
+                    task_desc = line[5:].strip()  # Remove '- [ ] '
+                    if task_desc:
+                        task = Task(task_desc, 30)  # Default 30 min
+                        task.status = TaskStatus.PENDING
+                        tasks.append(task)
+                elif line.startswith('- [x]') or line.startswith('- [X]'):
+                    # Completed task
+                    task_desc = line[5:].strip()  # Remove '- [x] '
+                    if task_desc:
+                        task = Task(task_desc, 30)  # Default 30 min
+                        task.status = TaskStatus.COMPLETED
+                        task.progress_percentage = 100
+                        tasks.append(task)
+                i += 1
+            
+            description = '\n'.join(description_lines).strip()
+            if not description:
+                description = title
+                
             goal = Goal(title=title, description=description)
+            goal.sub_tasks = tasks
             goals.append(goal)
         
         return goals
@@ -73,14 +115,22 @@ Respond with ONLY valid JSON in this exact format:
             if llm is None:
                 raise ImportError("llm library not available")
             
-            # Use the llm Python library with default model
+            # Use the llm Python library with available model
             try:
-                model = llm.get_model()  # Use default model
+                # Try to use gpt-3.5-turbo as it's commonly available
+                model = llm.get_model("gpt-3.5-turbo")
                 response = model.prompt(prompt)
                 response_text = response.text()
             except Exception as model_error:
                 print(f"LLM model error: {model_error}")
-                raise model_error
+                # Try with any available model as fallback
+                try:
+                    model = llm.get_model("4o-mini")  # Try GPT-4o-mini
+                    response = model.prompt(prompt)
+                    response_text = response.text()
+                except Exception as fallback_error:
+                    print(f"LLM fallback error: {fallback_error}")
+                    raise model_error
             
             # Try to extract JSON from the response
             json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
@@ -200,7 +250,7 @@ Respond with ONLY valid JSON in this exact format:
         return False
     
     def save_goals_to_file(self, goals_file: Path) -> None:
-        """Save goals with task status back to markdown file"""
+        """Save goals with task status back to markdown file using checkbox format"""
         try:
             content = []
             
@@ -216,18 +266,14 @@ Respond with ONLY valid JSON in this exact format:
                 
                 # Add sub-tasks if they exist
                 if goal.sub_tasks:
-                    content.append("## Tasks:")
                     for task in goal.sub_tasks:
-                        status_emoji = {
-                            "pending": "⏳",
-                            "in_progress": "🔄", 
-                            "completed": "✅",
-                            "on_hold": "⏸️"
-                        }.get(task.status.value, "⏳")
+                        # Use checkbox format based on status
+                        if task.status == TaskStatus.COMPLETED:
+                            checkbox = "[x]"
+                        else:
+                            checkbox = "[ ]"
                         
-                        task_line = f"- {status_emoji} {task.description} ({task.estimated_time_minutes}min)"
-                        if task.progress_percentage > 0:
-                            task_line += f" - {task.progress_percentage}% complete"
+                        task_line = f"- {checkbox} {task.description}"
                         content.append(task_line)
                     content.append("")
             
