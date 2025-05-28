@@ -36,12 +36,7 @@ class JournalManager:
             return
             
         try:
-            content = f"""Current Task: {self.current_task.description}
-Estimated Time: {self.current_task.estimated_time_minutes} minutes
-Progress: {self.current_task.progress_percentage}%
-Status: {self.current_task.status.value}
-Started: {datetime.now().strftime('%H:%M')}
-"""
+            content = f"Current: {self.current_task.description} | {self.current_task.progress_percentage}% | {self.current_task.estimated_time_minutes}min | {self.current_task.status.value}"
             self.current_task_file.write_text(content)
         except Exception as e:
             print(f"Error updating current task display: {e}")

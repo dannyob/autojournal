@@ -30,7 +30,7 @@ class AutoJournal:
         self.running = False
         
     async def initialize(self):
-        """Initialize the session by loading goals and setting up the first task"""
+        """Initialize the session by loading goals"""
         if not self.goals_file.exists():
             print(f"Goals file '{self.goals_file}' not found!")
             sys.exit(1)
@@ -39,15 +39,12 @@ class AutoJournal:
         if not goals:
             print("No goals found in goals file!")
             sys.exit(1)
-            
-        # Break down the first goal into sub-tasks
-        first_goal = goals[0]
-        sub_tasks = await self.goal_manager.break_down_goal(first_goal)
-        
-        if sub_tasks:
-            self.current_task = sub_tasks[0]
-            self.journal_manager.set_current_task(self.current_task)
-            await self.journal_manager.log_task_start(self.current_task)
+    
+    async def start_selected_task(self, selected_task: 'Task'):
+        """Start the selected task"""
+        self.current_task = selected_task
+        self.journal_manager.set_current_task(self.current_task)
+        await self.journal_manager.log_task_start(self.current_task)
         
     async def run_monitoring_loop(self):
         """Main monitoring loop that takes screenshots and analyzes activity"""
@@ -134,6 +131,9 @@ def main():
         
         # Run the TUI (this blocks until quit)
         # The monitoring loop will run in the background via TUI updates
+        # Configure to disable mouse tracking
+        import os
+        os.environ.setdefault('TEXTUAL_NO_MOUSE', '1')
         app.tui.run()
         
         loop.close()
@@ -143,6 +143,22 @@ def main():
     except Exception as e:
         print(f"Error: {e}")
         sys.exit(1)
+    finally:
+        # Clean up current task file
+        try:
+            current_task_file = Path.home() / ".current-task"
+            if current_task_file.exists():
+                current_task_file.unlink()
+        except Exception:
+            pass  # Ignore cleanup errors during shutdown
+        
+        # Ensure mouse tracking is disabled when exiting
+        import sys
+        sys.stdout.write('\033[?1000l')  # Disable basic mouse tracking
+        sys.stdout.write('\033[?1003l')  # Disable all mouse tracking  
+        sys.stdout.write('\033[?1015l')  # Disable extended mouse tracking
+        sys.stdout.write('\033[?1006l')  # Disable SGR mouse tracking
+        sys.stdout.flush()
 
 
 if __name__ == "__main__":

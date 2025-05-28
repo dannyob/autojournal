@@ -1,9 +1,11 @@
 """Terminal User Interface for AutoJournal"""
 
 import asyncio
+from pathlib import Path
 from textual.app import App, ComposeResult
 from textual.containers import Container, Horizontal, Vertical
-from textual.widgets import Header, Footer, Static, Button, Input, TextArea
+from textual.widgets import Header, Footer, Static, Button, Input, TextArea, OptionList
+from textual.widgets.option_list import Option
 from textual.binding import Binding
 from textual.screen import ModalScreen
 from textual import events
@@ -18,6 +20,10 @@ class TaskClarificationModal(ModalScreen):
         super().__init__()
         self.current_description = current_description
         self.new_description = current_description
+    
+    def _enable_mouse_support(self) -> bool:
+        """Disable mouse support to prevent coordinate output"""
+        return False
     
     def compose(self) -> ComposeResult:
         yield Container(
@@ -44,10 +50,66 @@ class TaskClarificationModal(ModalScreen):
             self.dismiss(None)
 
 
+class TaskSelectionModal(ModalScreen):
+    """Modal for selecting a task from available goals"""
+    
+    def __init__(self, available_tasks: list):
+        super().__init__()
+        self.available_tasks = available_tasks
+        self.selected_task = None
+    
+    def _enable_mouse_support(self) -> bool:
+        """Disable mouse support to prevent coordinate output"""
+        return False
+    
+    def compose(self) -> ComposeResult:
+        options = []
+        for i, (goal_title, task) in enumerate(self.available_tasks):
+            option_text = f"{goal_title}: {task.description} ({task.estimated_time_minutes}min)"
+            options.append(Option(option_text, id=str(i)))
+        
+        yield Container(
+            Static("Select a Task to Start:", classes="modal-title"),
+            OptionList(*options, id="task-list"),
+            Horizontal(
+                Button("Start Task", variant="primary", id="start"),
+                Button("Cancel", id="cancel"),
+                classes="modal-buttons"
+            ),
+            classes="task-modal"
+        )
+    
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "start":
+            self._start_selected_task()
+        elif event.button.id == "cancel":
+            self.dismiss(None)
+    
+    def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
+        """Handle double-click or Enter on option list items"""
+        self._start_selected_task()
+    
+    def _start_selected_task(self) -> None:
+        """Start the currently selected task"""
+        option_list = self.query_one("#task-list", OptionList)
+        if option_list.highlighted is not None:
+            selected_index = int(option_list.highlighted)
+            _, selected_task = self.available_tasks[selected_index]
+            self.dismiss(selected_task)
+
+
 class AutoJournalTUI(App):
     """Main TUI application for AutoJournal"""
     
     TITLE = "AutoJournal - Productivity Tracker"
+    
+    # Disable mouse support to prevent mouse coordinate output
+    ENABLE_COMMAND_PALETTE = False
+    
+    @property
+    def mouse_captures(self) -> bool:
+        """Disable mouse capture"""
+        return False
     
     BINDINGS = [
         Binding("c", "mark_complete", "Complete Task"),
@@ -90,6 +152,15 @@ class AutoJournalTUI(App):
         padding: 1;
     }
     
+    .task-modal {
+        align: center middle;
+        background: $surface;
+        border: solid $accent;
+        width: 80;
+        height: 20;
+        padding: 1;
+    }
+    
     .modal-title {
         text-align: center;
         margin-bottom: 1;
@@ -111,6 +182,10 @@ class AutoJournalTUI(App):
         self.current_task = None
         self.on_task = True
         self.last_activity = "Starting session..."
+    
+    def _enable_mouse_support(self) -> bool:
+        """Disable mouse support to prevent coordinate output"""
+        return False
     
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
@@ -139,9 +214,73 @@ class AutoJournalTUI(App):
     
     def on_mount(self) -> None:
         """Set up the TUI when it starts"""
+        # Disable mouse tracking sequences
+        import sys
+        sys.stdout.write('\033[?1000l')  # Disable basic mouse tracking
+        sys.stdout.write('\033[?1003l')  # Disable all mouse tracking
+        sys.stdout.write('\033[?1015l')  # Disable extended mouse tracking
+        sys.stdout.write('\033[?1006l')  # Disable SGR mouse tracking
+        sys.stdout.flush()
+        
         self.set_interval(1.0, self.update_display)
         # Start monitoring loop in background
         self.set_interval(10.0, self.take_screenshot_and_analyze)
+        # Show task picker if no task is selected
+        if not self.autojournal_app.current_task:
+            self.call_after_refresh(self._show_initial_task_picker)
+    
+    def _show_initial_task_picker(self):
+        """Show task picker on startup"""
+        # Check if we have available tasks and show the picker
+        # For now, use the blocking approach to get tasks
+        try:
+            # Use run_in_executor to run async code without creating conflicts
+            import concurrent.futures
+            import threading
+            
+            def get_tasks():
+                # Run in a separate thread with its own event loop
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    return loop.run_until_complete(
+                        self.autojournal_app.goal_manager.get_all_available_tasks()
+                    )
+                finally:
+                    loop.close()
+            
+            # Get tasks in background thread
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(get_tasks)
+                available_tasks = future.result(timeout=5)  # 5 second timeout
+            
+            if available_tasks:
+                def handle_task_selection(selected_task):
+                    if selected_task:
+                        # Start the selected task in a thread
+                        def start_task():
+                            loop = asyncio.new_event_loop()
+                            asyncio.set_event_loop(loop)
+                            try:
+                                loop.run_until_complete(
+                                    self.autojournal_app.start_selected_task(selected_task)
+                                )
+                            finally:
+                                loop.close()
+                        
+                        threading.Thread(target=start_task, daemon=True).start()
+                        self.notify(f"Started task: {selected_task.description}")
+                    else:
+                        self.exit()  # Exit if no task selected
+                
+                self.show_task_picker(available_tasks, handle_task_selection)
+            else:
+                self.notify("No tasks available!")
+                self.exit()
+            
+        except Exception as e:
+            self.notify(f"Error loading tasks: {e}")
+            self.exit()
     
     def update_display(self) -> None:
         """Update the display with current information"""
@@ -218,8 +357,28 @@ class AutoJournalTUI(App):
     
     def action_quit_app(self) -> None:
         """End session and quit application"""
+        # Ensure mouse tracking is disabled before exit
+        import sys
+        sys.stdout.write('\033[?1000l')  # Disable basic mouse tracking
+        sys.stdout.write('\033[?1003l')  # Disable all mouse tracking
+        sys.stdout.write('\033[?1015l')  # Disable extended mouse tracking
+        sys.stdout.write('\033[?1006l')  # Disable SGR mouse tracking
+        sys.stdout.flush()
+        
+        # Clean up current task file
+        self._cleanup_current_task_file()
+        
         asyncio.create_task(self.autojournal_app.end_session())
         self.exit()
+    
+    def _cleanup_current_task_file(self) -> None:
+        """Remove the current task file"""
+        try:
+            current_task_file = Path.home() / ".current-task"
+            if current_task_file.exists():
+                current_task_file.unlink()
+        except Exception as e:
+            print(f"Error removing current task file: {e}")
     
     def take_screenshot_and_analyze(self) -> None:
         """Take screenshot and analyze activity (called by timer)"""
@@ -246,6 +405,10 @@ class AutoJournalTUI(App):
         except Exception as e:
             # Don't crash the TUI if analysis fails
             print(f"Analysis error: {e}")
+    
+    def show_task_picker(self, available_tasks: list, callback):
+        """Show task selection modal"""
+        self.push_screen(TaskSelectionModal(available_tasks), callback)
     
     def run_app(self):
         """Run the TUI application"""

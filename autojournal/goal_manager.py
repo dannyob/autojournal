@@ -145,6 +145,31 @@ Respond with ONLY valid JSON in this exact format:
                     return task
         return None
     
+    async def get_all_available_tasks(self) -> List[tuple]:
+        """Get all available tasks from all goals as (goal_title, task) tuples"""
+        all_tasks = []
+        
+        for goal in self.goals:
+            # If goal doesn't have sub-tasks yet, break it down
+            if not goal.sub_tasks:
+                await self.break_down_goal(goal)
+            
+            # Add all pending tasks from this goal
+            for task in goal.sub_tasks:
+                if task.status == TaskStatus.PENDING:
+                    all_tasks.append((goal.title, task))
+        
+        # Remove any duplicate tasks (same description and goal)
+        seen = set()
+        unique_tasks = []
+        for goal_title, task in all_tasks:
+            task_key = (goal_title, task.description, task.estimated_time_minutes)
+            if task_key not in seen:
+                seen.add(task_key)
+                unique_tasks.append((goal_title, task))
+        
+        return unique_tasks
+    
     async def generate_session_summary(self, journal_entries: List[JournalEntry]) -> str:
         """Generate an AI-powered summary of the session with efficiency insights"""
         
