@@ -43,6 +43,14 @@ class AutoJournal:
     async def start_selected_task(self, selected_task: 'Task'):
         """Start the selected task"""
         self.current_task = selected_task
+        
+        # Update task status in goals list
+        from .models import TaskStatus
+        self.goal_manager.update_task_status(self.current_task, TaskStatus.IN_PROGRESS)
+        
+        # Save updated goals to file
+        self.goal_manager.save_goals_to_file(self.goals_file)
+        
         self.journal_manager.set_current_task(self.current_task)
         await self.journal_manager.log_task_start(self.current_task)
         
@@ -71,8 +79,15 @@ class AutoJournal:
     async def mark_task_complete(self):
         """Mark current task as complete and move to next"""
         if self.current_task:
+            # Mark task as complete in goals list
+            self.goal_manager.mark_task_complete(self.current_task)
+            
+            # Save updated goals to file
+            self.goal_manager.save_goals_to_file(self.goals_file)
+            
+            # Log completion to journal
             await self.journal_manager.log_task_completion(self.current_task)
-            # TODO: Get next task from goal manager
+            
             print("Task marked as complete!")
     
     async def clarify_task(self, new_description: str):
@@ -86,11 +101,25 @@ class AutoJournal:
     async def put_task_on_hold(self, reason: str = "Break"):
         """Temporarily pause the current task"""
         if self.current_task:
+            # Update task status in goals list
+            from .models import TaskStatus
+            self.goal_manager.update_task_status(self.current_task, TaskStatus.ON_HOLD)
+            
+            # Save updated goals to file
+            self.goal_manager.save_goals_to_file(self.goals_file)
+            
             await self.journal_manager.log_task_hold(self.current_task, reason)
     
     async def resume_task(self):
         """Resume the current task from hold"""
         if self.current_task:
+            # Update task status in goals list
+            from .models import TaskStatus
+            self.goal_manager.update_task_status(self.current_task, TaskStatus.IN_PROGRESS)
+            
+            # Save updated goals to file
+            self.goal_manager.save_goals_to_file(self.goals_file)
+            
             await self.journal_manager.log_task_resume(self.current_task)
     
     async def end_session(self):

@@ -65,7 +65,18 @@ class TaskSelectionModal(ModalScreen):
     def compose(self) -> ComposeResult:
         options = []
         for i, (goal_title, task) in enumerate(self.available_tasks):
-            option_text = f"{goal_title}: {task.description} ({task.estimated_time_minutes}min)"
+            # Clean up task description to remove redundant goal title
+            task_desc = task.description
+            if task_desc.startswith("Start working on: "):
+                task_desc = task_desc.replace("Start working on: ", "▶️ ")
+            elif task_desc.startswith("Continue progress on: "):
+                task_desc = task_desc.replace("Continue progress on: ", "⏭️ ")
+            elif task_desc.startswith("Complete: "):
+                task_desc = task_desc.replace("Complete: ", "✅ ")
+            elif task_desc.startswith("Work on: "):
+                task_desc = task_desc.replace("Work on: ", "🔨 ")
+            
+            option_text = f"{goal_title}: {task_desc} ({task.estimated_time_minutes}min)"
             options.append(Option(option_text, id=str(i)))
         
         yield Container(
@@ -74,6 +85,7 @@ class TaskSelectionModal(ModalScreen):
             Horizontal(
                 Button("Start Task", variant="primary", id="start"),
                 Button("Cancel", id="cancel"),
+                Button("Quit", variant="error", id="quit"),
                 classes="modal-buttons"
             ),
             classes="task-modal"
@@ -84,6 +96,8 @@ class TaskSelectionModal(ModalScreen):
             self._start_selected_task()
         elif event.button.id == "cancel":
             self.dismiss(None)
+        elif event.button.id == "quit":
+            self.dismiss("quit")
     
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         """Handle double-click or Enter on option list items"""
@@ -116,6 +130,7 @@ class AutoJournalTUI(App):
         Binding("e", "clarify_task", "Edit Task"),
         Binding("h", "hold_task", "Hold Task"),
         Binding("r", "resume_task", "Resume Task"),
+        Binding("n", "pick_new_task", "New Task"),
         Binding("q", "quit_app", "Quit"),
     ]
     
@@ -208,6 +223,7 @@ class AutoJournalTUI(App):
                 yield Button("📝 Edit Task (e)", id="edit", variant="primary")
                 yield Button("⏸️ Hold Task (h)", id="hold", variant="warning")
                 yield Button("▶️ Resume Task (r)", id="resume")
+                yield Button("🔄 New Task (n)", id="new-task", variant="primary")
                 yield Button("🏁 End Session (q)", id="quit", variant="error")
         
         yield Footer()
@@ -256,7 +272,9 @@ class AutoJournalTUI(App):
             
             if available_tasks:
                 def handle_task_selection(selected_task):
-                    if selected_task:
+                    if selected_task == "quit":
+                        self.action_quit_app()  # Full quit
+                    elif selected_task:
                         # Start the selected task in a thread
                         def start_task():
                             loop = asyncio.new_event_loop()
@@ -315,6 +333,8 @@ class AutoJournalTUI(App):
             self.action_hold_task()
         elif event.button.id == "resume":
             self.action_resume_task()
+        elif event.button.id == "new-task":
+            self.action_pick_new_task()
         elif event.button.id == "quit":
             self.action_quit_app()
     
@@ -354,6 +374,56 @@ class AutoJournalTUI(App):
         if self.autojournal_app.current_task:
             asyncio.create_task(self.autojournal_app.resume_task())
             self.notify("Task resumed! ▶️")
+    
+    def action_pick_new_task(self) -> None:
+        """Show task picker to select a new task"""
+        try:
+            # Use the same approach as initial task picker
+            import concurrent.futures
+            import threading
+            
+            def get_tasks():
+                # Run in a separate thread with its own event loop
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    return loop.run_until_complete(
+                        self.autojournal_app.goal_manager.get_all_available_tasks()
+                    )
+                finally:
+                    loop.close()
+            
+            # Get tasks in background thread
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(get_tasks)
+                available_tasks = future.result(timeout=5)  # 5 second timeout
+            
+            if available_tasks:
+                def handle_task_selection(selected_task):
+                    if selected_task == "quit":
+                        self.action_quit_app()  # Full quit
+                    elif selected_task:
+                        # Start the selected task in a thread
+                        def start_task():
+                            loop = asyncio.new_event_loop()
+                            asyncio.set_event_loop(loop)
+                            try:
+                                loop.run_until_complete(
+                                    self.autojournal_app.start_selected_task(selected_task)
+                                )
+                            finally:
+                                loop.close()
+                        
+                        threading.Thread(target=start_task, daemon=True).start()
+                        self.notify(f"Started new task: {selected_task.description}")
+                    # If None (cancelled), just continue with current task
+                
+                self.show_task_picker(available_tasks, handle_task_selection)
+            else:
+                self.notify("No available tasks found!")
+                
+        except Exception as e:
+            self.notify(f"Error loading tasks: {e}")
     
     def action_quit_app(self) -> None:
         """End session and quit application"""

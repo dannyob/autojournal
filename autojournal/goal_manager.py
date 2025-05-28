@@ -170,6 +170,73 @@ Respond with ONLY valid JSON in this exact format:
         
         return unique_tasks
     
+    def get_all_tasks_with_status(self) -> List[tuple]:
+        """Get all tasks with their current status for debugging"""
+        all_tasks = []
+        for goal in self.goals:
+            for task in goal.sub_tasks:
+                all_tasks.append((goal.title, task, task.status.value))
+        return all_tasks
+    
+    def mark_task_complete(self, completed_task: Task) -> bool:
+        """Mark a specific task as complete in the goals list"""
+        for goal in self.goals:
+            for task in goal.sub_tasks:
+                if (task.description == completed_task.description and 
+                    task.estimated_time_minutes == completed_task.estimated_time_minutes):
+                    task.status = TaskStatus.COMPLETED
+                    task.progress_percentage = 100
+                    return True
+        return False
+    
+    def update_task_status(self, target_task: Task, new_status: TaskStatus) -> bool:
+        """Update a specific task's status in the goals list"""
+        for goal in self.goals:
+            for task in goal.sub_tasks:
+                if (task.description == target_task.description and 
+                    task.estimated_time_minutes == target_task.estimated_time_minutes):
+                    task.status = new_status
+                    return True
+        return False
+    
+    def save_goals_to_file(self, goals_file: Path) -> None:
+        """Save goals with task status back to markdown file"""
+        try:
+            content = []
+            
+            for goal in self.goals:
+                # Add goal header
+                content.append(f"# {goal.title}")
+                content.append("")
+                
+                # Add goal description if different from title
+                if goal.description and goal.description != goal.title:
+                    content.append(goal.description)
+                    content.append("")
+                
+                # Add sub-tasks if they exist
+                if goal.sub_tasks:
+                    content.append("## Tasks:")
+                    for task in goal.sub_tasks:
+                        status_emoji = {
+                            "pending": "⏳",
+                            "in_progress": "🔄", 
+                            "completed": "✅",
+                            "on_hold": "⏸️"
+                        }.get(task.status.value, "⏳")
+                        
+                        task_line = f"- {status_emoji} {task.description} ({task.estimated_time_minutes}min)"
+                        if task.progress_percentage > 0:
+                            task_line += f" - {task.progress_percentage}% complete"
+                        content.append(task_line)
+                    content.append("")
+            
+            # Write to file
+            goals_file.write_text("\n".join(content), encoding='utf-8')
+            
+        except Exception as e:
+            print(f"Error saving goals to file: {e}")
+    
     async def generate_session_summary(self, journal_entries: List[JournalEntry]) -> str:
         """Generate an AI-powered summary of the session with efficiency insights"""
         
