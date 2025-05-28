@@ -98,23 +98,21 @@ demo:
 
 demo-goals:
 	@echo "Creating sample goals.md..."
-	@cat > goals.md << 'EOF'
-# Complete Today's Work Tasks
-
-Finish the high-priority work items on my todo list and prepare for tomorrow's meetings.
-
-# Learn Something New
-
-Spend time learning a new technology, reading documentation, or watching educational content.
-
-# Exercise and Health
-
-Take breaks for physical activity, stretching, or a short walk to maintain energy levels.
-
-# Personal Project Time
-
-Work on a personal coding project or hobby to maintain creativity and skill development.
-EOF
+	@echo "# Complete Today's Work Tasks" > goals.md
+	@echo "" >> goals.md
+	@echo "Finish the high-priority work items on my todo list and prepare for tomorrow's meetings." >> goals.md
+	@echo "" >> goals.md
+	@echo "# Learn Something New" >> goals.md
+	@echo "" >> goals.md
+	@echo "Spend time learning a new technology, reading documentation, or watching educational content." >> goals.md
+	@echo "" >> goals.md
+	@echo "# Exercise and Health" >> goals.md
+	@echo "" >> goals.md
+	@echo "Take breaks for physical activity, stretching, or a short walk to maintain energy levels." >> goals.md
+	@echo "" >> goals.md
+	@echo "# Personal Project Time" >> goals.md
+	@echo "" >> goals.md
+	@echo "Work on a personal coding project or hobby to maintain creativity and skill development." >> goals.md
 	@echo "Sample goals.md created!"
 
 # Maintenance
@@ -151,23 +149,21 @@ dev-setup: dev-install
 	@echo "Setting up development environment..."
 	@echo "Creating .vscode/settings.json for optimal development..."
 	@mkdir -p .vscode
-	@cat > .vscode/settings.json << 'EOF'
-{
-    "python.defaultInterpreterPath": ".venv/bin/python",
-    "python.testing.pytestEnabled": true,
-    "python.testing.pytestArgs": ["tests/"],
-    "python.linting.enabled": true,
-    "python.linting.ruffEnabled": true,
-    "python.formatting.provider": "ruff",
-    "editor.formatOnSave": true,
-    "editor.rulers": [88],
-    "files.exclude": {
-        "**/__pycache__": true,
-        "**/*.pyc": true,
-        ".pytest_cache": true
-    }
-}
-EOF
+	@echo '{' > .vscode/settings.json
+	@echo '    "python.defaultInterpreterPath": ".venv/bin/python",' >> .vscode/settings.json
+	@echo '    "python.testing.pytestEnabled": true,' >> .vscode/settings.json
+	@echo '    "python.testing.pytestArgs": ["tests/"],' >> .vscode/settings.json
+	@echo '    "python.linting.enabled": true,' >> .vscode/settings.json
+	@echo '    "python.linting.ruffEnabled": true,' >> .vscode/settings.json
+	@echo '    "python.formatting.provider": "ruff",' >> .vscode/settings.json
+	@echo '    "editor.formatOnSave": true,' >> .vscode/settings.json
+	@echo '    "editor.rulers": [88],' >> .vscode/settings.json
+	@echo '    "files.exclude": {' >> .vscode/settings.json
+	@echo '        "**/__pycache__": true,' >> .vscode/settings.json
+	@echo '        "**/*.pyc": true,' >> .vscode/settings.json
+	@echo '        ".pytest_cache": true' >> .vscode/settings.json
+	@echo '    }' >> .vscode/settings.json
+	@echo '}' >> .vscode/settings.json
 	@echo "VS Code settings configured!"
 	@echo "Development environment ready!"
 
