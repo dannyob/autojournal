@@ -151,8 +151,7 @@ class JournalManager:
         
         # Clear current task display
         try:
-            if self.current_task_file.exists():
-                self.current_task_file.unlink()
+            self.current_task_file.write_text("")
         except Exception as e:
             print(f"Error clearing current task display: {e}")
     

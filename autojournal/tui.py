@@ -241,6 +241,7 @@ class AutoJournalTUI(App):
         self.set_interval(1.0, self.update_display)
         # Start monitoring loop in background
         self.set_interval(10.0, self.take_screenshot_and_analyze)
+        
         # Show task picker if no task is selected
         if not self.autojournal_app.current_task:
             self.call_after_refresh(self._show_initial_task_picker)
@@ -259,16 +260,17 @@ class AutoJournalTUI(App):
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
                 try:
-                    return loop.run_until_complete(
+                    tasks = loop.run_until_complete(
                         self.autojournal_app.goal_manager.get_all_available_tasks()
                     )
+                    return tasks
                 finally:
                     loop.close()
             
             # Get tasks in background thread
             with concurrent.futures.ThreadPoolExecutor() as executor:
                 future = executor.submit(get_tasks)
-                available_tasks = future.result(timeout=5)  # 5 second timeout
+                available_tasks = future.result(timeout=15)  # 15 second timeout for LLM calls
             
             if available_tasks:
                 def handle_task_selection(selected_task):
@@ -396,7 +398,7 @@ class AutoJournalTUI(App):
             # Get tasks in background thread
             with concurrent.futures.ThreadPoolExecutor() as executor:
                 future = executor.submit(get_tasks)
-                available_tasks = future.result(timeout=5)  # 5 second timeout
+                available_tasks = future.result(timeout=15)  # 15 second timeout for LLM calls
             
             if available_tasks:
                 def handle_task_selection(selected_task):
@@ -442,13 +444,12 @@ class AutoJournalTUI(App):
         self.exit()
     
     def _cleanup_current_task_file(self) -> None:
-        """Remove the current task file"""
+        """Clear the current task file"""
         try:
             current_task_file = Path.home() / ".current-task"
-            if current_task_file.exists():
-                current_task_file.unlink()
+            current_task_file.write_text("")
         except Exception as e:
-            print(f"Error removing current task file: {e}")
+            print(f"Error clearing current task file: {e}")
     
     def take_screenshot_and_analyze(self) -> None:
         """Take screenshot and analyze activity (called by timer)"""

@@ -145,18 +145,31 @@ def main():
     parser = argparse.ArgumentParser(description="AutoJournal - Intelligent productivity tracking")
     parser.add_argument("goals_file", nargs="?", default="goals.md", 
                        help="Path to goals markdown file (default: goals.md)")
+    parser.add_argument("--debug", action="store_true", help="Enable debug output")
     
     args = parser.parse_args()
+    
+    if args.debug:
+        print(f"[DEBUG] Starting AutoJournal with goals file: {args.goals_file}")
     
     app = AutoJournal(args.goals_file)
     
     try:
+        if args.debug:
+            print("[DEBUG] Creating event loop...")
+        
         # Create a new event loop for the entire application
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         
+        if args.debug:
+            print("[DEBUG] Initializing application...")
+        
         # Initialize the app
         loop.run_until_complete(app.initialize())
+        
+        if args.debug:
+            print("[DEBUG] Starting TUI...")
         
         # Run the TUI (this blocks until quit)
         # The monitoring loop will run in the background via TUI updates
@@ -165,21 +178,31 @@ def main():
         os.environ.setdefault('TEXTUAL_NO_MOUSE', '1')
         app.tui.run()
         
+        if args.debug:
+            print("[DEBUG] TUI exited normally")
+        
         loop.close()
         
     except KeyboardInterrupt:
-        print("\nSession interrupted")
+        print("\n[DEBUG] Session interrupted by user")
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"[ERROR] Unhandled exception: {e}")
+        import traceback
+        traceback.print_exc()
         sys.exit(1)
     finally:
+        if args.debug:
+            print("[DEBUG] Cleaning up...")
+        
         # Clean up current task file
         try:
             current_task_file = Path.home() / ".current-task"
-            if current_task_file.exists():
-                current_task_file.unlink()
-        except Exception:
-            pass  # Ignore cleanup errors during shutdown
+            current_task_file.write_text("")
+            if args.debug:
+                print("[DEBUG] Cleared current task file")
+        except Exception as e:
+            if args.debug:
+                print(f"[DEBUG] Error clearing current task file: {e}")
         
         # Ensure mouse tracking is disabled when exiting
         import sys
@@ -188,6 +211,9 @@ def main():
         sys.stdout.write('\033[?1015l')  # Disable extended mouse tracking
         sys.stdout.write('\033[?1006l')  # Disable SGR mouse tracking
         sys.stdout.flush()
+        
+        if args.debug:
+            print("[DEBUG] Cleanup complete")
 
 
 if __name__ == "__main__":
