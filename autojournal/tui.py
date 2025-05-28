@@ -472,6 +472,13 @@ class AutoJournalTUI(App):
     def take_screenshot_and_analyze(self) -> None:
         """Take screenshot and analyze activity (called by timer)"""
         try:
+            # Add debug logging
+            debug_file = Path.home() / ".autojournal-debug.log"
+            with open(debug_file, "a") as f:
+                from datetime import datetime
+                timestamp = datetime.now().strftime("%H:%M:%S")
+                f.write(f"{timestamp}: take_screenshot_and_analyze called\n")
+            
             # Run the async analysis in a new event loop
             import asyncio
             loop = asyncio.new_event_loop()
@@ -491,8 +498,20 @@ class AutoJournalTUI(App):
             
             loop.close()
             
+            # Log completion
+            with open(debug_file, "a") as f:
+                timestamp = datetime.now().strftime("%H:%M:%S")
+                f.write(f"{timestamp}: screenshot analysis completed\n")
+            
         except Exception as e:
             # Don't crash the TUI if analysis fails
+            debug_file = Path.home() / ".autojournal-debug.log"
+            with open(debug_file, "a") as f:
+                from datetime import datetime
+                timestamp = datetime.now().strftime("%H:%M:%S")
+                f.write(f"{timestamp}: Analysis error: {e}\n")
+                import traceback
+                traceback.print_exception(type(e), e, e.__traceback__, file=f)
             print(f"Analysis error: {e}")
     
     def show_task_picker(self, available_tasks: list, callback):
