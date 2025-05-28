@@ -479,29 +479,26 @@ class AutoJournalTUI(App):
                 timestamp = datetime.now().strftime("%H:%M:%S")
                 f.write(f"{timestamp}: take_screenshot_and_analyze called\n")
             
-            # Run the async analysis in a new event loop
+            # Use asyncio.create_task to run in the existing event loop
             import asyncio
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
             
-            analysis = loop.run_until_complete(
-                self.autojournal_app.screenshot_analyzer.analyze_current_activity(
+            async def run_analysis():
+                analysis = await self.autojournal_app.screenshot_analyzer.analyze_current_activity(
                     self.autojournal_app.current_task,
                     self.autojournal_app.journal_manager.get_recent_entries()
                 )
-            )
+                
+                # Log the analysis
+                await self.autojournal_app.journal_manager.log_activity(analysis)
+                return analysis
             
-            # Log the analysis
-            loop.run_until_complete(
-                self.autojournal_app.journal_manager.log_activity(analysis)
-            )
+            # Schedule the analysis to run in the existing event loop
+            asyncio.create_task(run_analysis())
             
-            loop.close()
-            
-            # Log completion
+            # Log that we scheduled the analysis
             with open(debug_file, "a") as f:
                 timestamp = datetime.now().strftime("%H:%M:%S")
-                f.write(f"{timestamp}: screenshot analysis completed\n")
+                f.write(f"{timestamp}: screenshot analysis scheduled\n")
             
         except Exception as e:
             # Don't crash the TUI if analysis fails
