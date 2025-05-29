@@ -97,7 +97,10 @@ class TaskSelectionModal(ModalScreen):
             elif task_desc.startswith("Work on: "):
                 task_desc = task_desc.replace("Work on: ", "🔨 ")
             
-            option_text = f"{goal_title}: {task_desc} ({task.estimated_time_minutes}min)"
+            # Format with bold goal title and styled subtask description
+            # Add visual separators and better formatting
+            goal_icon = "📋" if i % 2 == 0 else "📌"
+            option_text = f"{goal_icon} [bold]{goal_title}[/bold]\n    ├─ [italic]{task_desc}[/italic]\n    └─ [yellow]⏱ {task.estimated_time_minutes}min[/yellow]"
             options.append(Option(option_text, id=str(i)))
         
         yield Container(
