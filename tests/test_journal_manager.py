@@ -161,3 +161,48 @@ class TestJournalManager:
     
     def test_get_current_task_none(self):
         assert self.journal_manager.get_current_task() is None
+    
+    @pytest.mark.asyncio
+    async def test_off_task_indicator_in_current_task_display(self):
+        """Test that the off-task indicator appears in the current task display"""
+        task = Task("Test task", 30)
+        self.journal_manager.set_current_task(task)
+        
+        # Initial state should be on-task (no indicator)
+        content = self.journal_manager.current_task_file.read_text()
+        assert "⚠️" not in content
+        assert "Test task" in content
+        
+        # Log off-task activity
+        off_task_analysis = ActivityAnalysis(
+            timestamp=datetime.now(),
+            description="Browsing social media",
+            current_app="Facebook",
+            is_on_task=False,
+            progress_estimate=0,
+            confidence=0.9
+        )
+        
+        await self.journal_manager.log_activity(off_task_analysis)
+        
+        # Check that off-task indicator appears
+        content = self.journal_manager.current_task_file.read_text()
+        assert "⚠️" in content
+        assert "Test task ⚠️" in content
+        
+        # Log on-task activity 
+        on_task_analysis = ActivityAnalysis(
+            timestamp=datetime.now(),
+            description="Working on code",
+            current_app="VSCode",
+            is_on_task=True,
+            progress_estimate=25,
+            confidence=0.8
+        )
+        
+        await self.journal_manager.log_activity(on_task_analysis)
+        
+        # Check that off-task indicator is removed
+        content = self.journal_manager.current_task_file.read_text()
+        assert "Test task ⚠️" not in content
+        assert "Test task" in content and content.count("⚠️") == 0

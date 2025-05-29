@@ -16,6 +16,7 @@ class JournalManager:
         self.journal_entries: List[JournalEntry] = []
         self.current_task: Optional[Task] = None
         self.session_start = datetime.now()
+        self.is_on_task = True  # Track current on-task status
     
     def get_journal_path(self, date: datetime = None) -> Path:
         """Get the journal file path for a given date"""
@@ -42,7 +43,9 @@ class JournalManager:
                     f.write(f"{timestamp}: _update_current_task_display called but no current task\n")
                     return
                 
-                content = f"Current: {self.current_task.description} | {self.current_task.progress_percentage}% | {self.current_task.estimated_time_minutes}min | {self.current_task.status.value}"
+                # Add off-task indicator if currently off-task
+                off_task_indicator = " ⚠️" if not self.is_on_task else ""
+                content = f"Current: {self.current_task.description}{off_task_indicator} | {self.current_task.progress_percentage}% | {self.current_task.estimated_time_minutes}min | {self.current_task.status.value}"
                 f.write(f"{timestamp}: Writing to {self.current_task_file}: {content}\n")
                 
                 self.current_task_file.write_text(content)
@@ -68,6 +71,8 @@ class JournalManager:
         self.journal_entries.append(entry)
         self._write_to_journal(entry)
         task.status = TaskStatus.IN_PROGRESS
+        # Reset to on-task when starting a new task
+        self.is_on_task = True
         self._update_current_task_display()
     
     async def log_activity(self, analysis: ActivityAnalysis):
@@ -87,12 +92,19 @@ class JournalManager:
         self.journal_entries.append(entry)
         self._write_to_journal(entry)
         
+        # Update on-task status and refresh display if status changed
+        old_status = self.is_on_task
+        self.is_on_task = analysis.is_on_task
+        
         # Update task progress if on-task
         if analysis.is_on_task and self.current_task:
             self.current_task.progress_percentage = max(
                 self.current_task.progress_percentage,
                 analysis.progress_estimate
             )
+        
+        # Update display if status changed or progress updated
+        if old_status != self.is_on_task or analysis.is_on_task:
             self._update_current_task_display()
     
     async def log_task_completion(self, task: Task):
@@ -149,6 +161,8 @@ class JournalManager:
         self.journal_entries.append(entry)
         self._write_to_journal(entry)
         task.status = TaskStatus.IN_PROGRESS
+        # Reset to on-task when resuming a task
+        self.is_on_task = True
         self._update_current_task_display()
     
     async def log_session_end(self):
