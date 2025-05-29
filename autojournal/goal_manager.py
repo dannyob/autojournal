@@ -201,7 +201,7 @@ class GoalManager:
                 debug_logger.debug(f"break_down_goal: Processing task {i+1}: {task_data.get('description', 'N/A')}")
                 task = Task(
                     description=task_data['description'],
-                    estimated_time_minutes=task_data['estimated_time_minutes']
+                    estimated_time_minutes=task_data.get('estimated_minutes', 30)  # Use 'estimated_minutes' from LLM response
                 )
                 tasks.append(task)
             

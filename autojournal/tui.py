@@ -218,6 +218,13 @@ class AutoJournalTUI(App):
     
     def on_mount(self) -> None:
         """Set up the TUI when it starts"""
+        # Add debug logging at the very start
+        debug_file = Path.home() / ".autojournal-debug.log"
+        with open(debug_file, "a") as f:
+            from datetime import datetime
+            timestamp = datetime.now().strftime("%H:%M:%S")
+            f.write(f"{timestamp}: TUI on_mount started\n")
+        
         # Disable mouse tracking sequences
         import sys
         sys.stdout.write('\033[?1000l')  # Disable basic mouse tracking
@@ -226,17 +233,44 @@ class AutoJournalTUI(App):
         sys.stdout.write('\033[?1006l')  # Disable SGR mouse tracking
         sys.stdout.flush()
         
+        with open(debug_file, "a") as f:
+            timestamp = datetime.now().strftime("%H:%M:%S")
+            f.write(f"{timestamp}: Mouse tracking disabled\n")
+        
         self.set_interval(1.0, self.update_display)
+        
+        with open(debug_file, "a") as f:
+            timestamp = datetime.now().strftime("%H:%M:%S")
+            f.write(f"{timestamp}: Set update_display interval\n")
+        
         # Start monitoring loop in background
         screenshot_interval = get_setting("screenshot_interval")
         self.set_interval(float(screenshot_interval), self.take_screenshot_and_analyze)
         
+        with open(debug_file, "a") as f:
+            timestamp = datetime.now().strftime("%H:%M:%S")
+            f.write(f"{timestamp}: Set screenshot interval ({screenshot_interval}s)\n")
+        
         # Show task picker if no task is selected
         if not self.autojournal_app.current_task:
+            with open(debug_file, "a") as f:
+                timestamp = datetime.now().strftime("%H:%M:%S")
+                f.write(f"{timestamp}: No current task, will show task picker\n")
             self.call_after_refresh(self._show_initial_task_picker)
+        else:
+            with open(debug_file, "a") as f:
+                timestamp = datetime.now().strftime("%H:%M:%S")
+                f.write(f"{timestamp}: Current task exists, skipping task picker\n")
     
     def _show_initial_task_picker(self):
         """Show task picker on startup"""
+        # Add debug logging
+        debug_file = Path.home() / ".autojournal-debug.log"
+        with open(debug_file, "a") as f:
+            from datetime import datetime
+            timestamp = datetime.now().strftime("%H:%M:%S")
+            f.write(f"{timestamp}: _show_initial_task_picker called\n")
+        
         # Check if we have available tasks and show the picker
         # For now, use the blocking approach to get tasks
         try:
@@ -249,10 +283,32 @@ class AutoJournalTUI(App):
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
                 try:
+                    # Add debug logging
+                    debug_file = Path.home() / ".autojournal-debug.log"
+                    with open(debug_file, "a") as f:
+                        from datetime import datetime
+                        timestamp = datetime.now().strftime("%H:%M:%S")
+                        f.write(f"{timestamp}: Starting get_all_available_tasks...\n")
+                    
                     tasks = loop.run_until_complete(
                         self.autojournal_app.goal_manager.get_all_available_tasks()
                     )
+                    
+                    with open(debug_file, "a") as f:
+                        timestamp = datetime.now().strftime("%H:%M:%S")
+                        f.write(f"{timestamp}: Got {len(tasks) if tasks else 0} tasks\n")
+                    
                     return tasks
+                except Exception as e:
+                    # Log the error
+                    debug_file = Path.home() / ".autojournal-debug.log"
+                    with open(debug_file, "a") as f:
+                        from datetime import datetime
+                        timestamp = datetime.now().strftime("%H:%M:%S")
+                        f.write(f"{timestamp}: ERROR in get_tasks: {e}\n")
+                        import traceback
+                        traceback.print_exception(type(e), e, e.__traceback__, file=f)
+                    raise
                 finally:
                     loop.close()
             
