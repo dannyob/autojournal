@@ -2,6 +2,7 @@
 
 import re
 import json
+import logging
 from pathlib import Path
 from typing import List, Optional
 from datetime import datetime
@@ -13,6 +14,16 @@ except ImportError:
 
 from .models import Goal, Task, TaskStatus, JournalEntry
 from .config import get_model, get_prompt
+
+# Set up debug logging
+debug_logger = logging.getLogger('autojournal.debug')
+debug_logger.setLevel(logging.DEBUG)
+if not debug_logger.handlers:
+    debug_handler = logging.FileHandler('.autojournal-debug.log')
+    debug_handler.setLevel(logging.DEBUG)
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    debug_handler.setFormatter(formatter)
+    debug_logger.addHandler(debug_handler)
 
 
 class GoalManager:
@@ -97,61 +108,116 @@ class GoalManager:
     
     async def break_down_goal(self, goal: Goal) -> List[Task]:
         """Use LLM to break down a goal into actionable sub-tasks"""
+        debug_logger.debug(f"break_down_goal: Starting breakdown for goal '{goal.title}'")
+        
         # Get prompt from configuration and format it
-        prompt_template = get_prompt("goal_breakdown")
-        prompt = prompt_template.format(
-            goal_title=goal.title,
-            goal_description=goal.description
-        )
+        debug_logger.debug("break_down_goal: Getting prompt template")
+        try:
+            prompt_template = get_prompt("goal_breakdown")
+            debug_logger.debug(f"break_down_goal: Got prompt template, length: {len(prompt_template)}")
+        except Exception as e:
+            debug_logger.error(f"break_down_goal: Error getting prompt template: {e}")
+            raise
+        
+        debug_logger.debug("break_down_goal: Formatting prompt")
+        try:
+            prompt = prompt_template.format(
+                goal_title=goal.title,
+                goal_description=goal.description
+            )
+            debug_logger.debug(f"break_down_goal: Formatted prompt, length: {len(prompt)}")
+        except Exception as e:
+            debug_logger.error(f"break_down_goal: Error formatting prompt: {e}")
+            raise
         
         try:
+            debug_logger.debug("break_down_goal: Checking if llm library is available")
             if llm is None:
+                debug_logger.error("break_down_goal: llm library not available")
                 raise ImportError("llm library not available")
+            
+            debug_logger.debug("break_down_goal: llm library is available")
             
             # Use the llm Python library with configured model
             try:
                 # Try to use configured model for goal breakdown
+                debug_logger.debug("break_down_goal: Getting model name for goal_breakdown")
                 model_name = get_model("goal_breakdown")
+                debug_logger.debug(f"break_down_goal: Got model name: {model_name}")
+                
+                debug_logger.debug("break_down_goal: Getting LLM model instance")
                 model = llm.get_model(model_name)
+                debug_logger.debug(f"break_down_goal: Got model instance: {type(model)}")
+                
+                debug_logger.debug("break_down_goal: About to call model.prompt() - THIS IS WHERE HANG MIGHT OCCUR")
                 response = model.prompt(prompt)
+                debug_logger.debug("break_down_goal: model.prompt() returned successfully")
+                
+                debug_logger.debug("break_down_goal: Getting response text")
                 response_text = response.text()
+                debug_logger.debug(f"break_down_goal: Got response text, length: {len(response_text)}")
+                
             except Exception as model_error:
+                debug_logger.error(f"break_down_goal: LLM model error: {model_error}")
                 print(f"LLM model error: {model_error}")
                 # Try with fallback model
                 try:
+                    debug_logger.debug("break_down_goal: Trying fallback model")
                     fallback_model = get_model("fallback")
+                    debug_logger.debug(f"break_down_goal: Got fallback model name: {fallback_model}")
+                    
                     model = llm.get_model(fallback_model)
+                    debug_logger.debug(f"break_down_goal: Got fallback model instance: {type(model)}")
+                    
+                    debug_logger.debug("break_down_goal: About to call fallback model.prompt() - THIS IS WHERE HANG MIGHT OCCUR")
                     response = model.prompt(prompt)
+                    debug_logger.debug("break_down_goal: Fallback model.prompt() returned successfully")
+                    
                     response_text = response.text()
+                    debug_logger.debug(f"break_down_goal: Got fallback response text, length: {len(response_text)}")
+                    
                 except Exception as fallback_error:
+                    debug_logger.error(f"break_down_goal: LLM fallback error: {fallback_error}")
                     print(f"LLM fallback error: {fallback_error}")
                     raise model_error
             
+            debug_logger.debug("break_down_goal: Processing LLM response")
             # Try to extract JSON from the response
             json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
             if json_match:
+                debug_logger.debug("break_down_goal: Found JSON in response")
                 json_text = json_match.group()
+                debug_logger.debug(f"break_down_goal: Extracted JSON text, length: {len(json_text)}")
                 response_data = json.loads(json_text)
+                debug_logger.debug(f"break_down_goal: Parsed JSON successfully, keys: {list(response_data.keys())}")
             else:
+                debug_logger.error("break_down_goal: No JSON found in response")
                 raise ValueError("No JSON found in response")
             
+            debug_logger.debug("break_down_goal: Creating Task objects from response")
             tasks = []
             
-            for task_data in response_data.get('tasks', []):
+            for i, task_data in enumerate(response_data.get('tasks', [])):
+                debug_logger.debug(f"break_down_goal: Processing task {i+1}: {task_data.get('description', 'N/A')}")
                 task = Task(
                     description=task_data['description'],
                     estimated_time_minutes=task_data['estimated_time_minutes']
                 )
                 tasks.append(task)
             
+            debug_logger.debug(f"break_down_goal: Created {len(tasks)} tasks")
             goal.sub_tasks = tasks
+            debug_logger.debug("break_down_goal: Successfully completed goal breakdown")
             return tasks
             
         except Exception as e:
+            debug_logger.error(f"break_down_goal: Error breaking down goal: {e}")
             print(f"Error breaking down goal: {e}")
             # Fallback: create sub-tasks based on goal content
+            debug_logger.debug("break_down_goal: Using fallback task creation")
             fallback_tasks = self._create_fallback_tasks(goal)
             goal.sub_tasks = fallback_tasks
+            debug_logger.debug(f"break_down_goal: Created {len(fallback_tasks)} fallback tasks")
             return fallback_tasks
     
     def _create_fallback_tasks(self, goal: Goal) -> List[Task]:
@@ -192,19 +258,38 @@ class GoalManager:
     
     async def get_all_available_tasks(self) -> List[tuple]:
         """Get all available tasks from all goals as (goal_title, task) tuples"""
+        debug_logger.debug(f"get_all_available_tasks: Starting with {len(self.goals)} goals")
         all_tasks = []
         
-        for goal in self.goals:
+        for i, goal in enumerate(self.goals):
+            debug_logger.debug(f"get_all_available_tasks: Processing goal {i+1}/{len(self.goals)}: '{goal.title}'")
+            debug_logger.debug(f"get_all_available_tasks: Goal has {len(goal.sub_tasks)} existing sub-tasks")
+            
             # If goal doesn't have sub-tasks yet, break it down
             if not goal.sub_tasks:
-                await self.break_down_goal(goal)
+                debug_logger.debug(f"get_all_available_tasks: Goal '{goal.title}' has no sub-tasks, breaking down")
+                try:
+                    await self.break_down_goal(goal)
+                    debug_logger.debug(f"get_all_available_tasks: Successfully broke down goal '{goal.title}', now has {len(goal.sub_tasks)} sub-tasks")
+                except Exception as e:
+                    debug_logger.error(f"get_all_available_tasks: Error breaking down goal '{goal.title}': {e}")
+                    continue
+            else:
+                debug_logger.debug(f"get_all_available_tasks: Goal '{goal.title}' already has sub-tasks, skipping breakdown")
             
             # Add all pending tasks from this goal
+            pending_count = 0
             for task in goal.sub_tasks:
                 if task.status == TaskStatus.PENDING:
                     all_tasks.append((goal.title, task))
+                    pending_count += 1
+            
+            debug_logger.debug(f"get_all_available_tasks: Added {pending_count} pending tasks from goal '{goal.title}'")
+        
+        debug_logger.debug(f"get_all_available_tasks: Total tasks collected: {len(all_tasks)}")
         
         # Remove any duplicate tasks (same description and goal)
+        debug_logger.debug("get_all_available_tasks: Removing duplicate tasks")
         seen = set()
         unique_tasks = []
         for goal_title, task in all_tasks:
@@ -213,6 +298,8 @@ class GoalManager:
                 seen.add(task_key)
                 unique_tasks.append((goal_title, task))
         
+        debug_logger.debug(f"get_all_available_tasks: After deduplication: {len(unique_tasks)} unique tasks")
+        debug_logger.debug("get_all_available_tasks: Finished successfully")
         return unique_tasks
     
     def get_all_tasks_with_status(self) -> List[tuple]:
@@ -280,36 +367,65 @@ class GoalManager:
     
     async def generate_session_summary(self, journal_entries: List[JournalEntry]) -> str:
         """Generate an AI-powered summary of the session with efficiency insights"""
+        debug_logger.debug(f"generate_session_summary: Starting with {len(journal_entries)} journal entries")
         
         if not journal_entries:
+            debug_logger.debug("generate_session_summary: No journal entries, returning default message")
             return "No activity recorded during this session."
         
         # Prepare journal content for analysis
+        debug_logger.debug("generate_session_summary: Preparing activity summary")
         activity_summary = ""
         for entry in journal_entries:
             activity_summary += f"[{entry.timestamp.strftime('%H:%M:%S')}] {entry.content}\n"
+        debug_logger.debug(f"generate_session_summary: Activity summary length: {len(activity_summary)}")
         
         # Prepare task context
+        debug_logger.debug("generate_session_summary: Preparing task context")
         task_context = ""
         if journal_entries and journal_entries[0].task_context:
             task = journal_entries[0].task_context
             task_context = f"Task: {task.description} (estimated {task.estimated_time_minutes} min)"
+            debug_logger.debug(f"generate_session_summary: Task context: {task_context}")
+        else:
+            debug_logger.debug("generate_session_summary: No task context available")
         
         # Get prompt from configuration and format it
-        prompt_template = get_prompt("session_summary")
-        prompt = prompt_template.format(
-            task_context=task_context,
-            activity_summary=activity_summary
-        )
+        debug_logger.debug("generate_session_summary: Getting prompt template")
+        try:
+            prompt_template = get_prompt("session_summary")
+            debug_logger.debug(f"generate_session_summary: Got prompt template, length: {len(prompt_template)}")
+            
+            prompt = prompt_template.format(
+                task_context=task_context,
+                activity_summary=activity_summary
+            )
+            debug_logger.debug(f"generate_session_summary: Formatted prompt, length: {len(prompt)}")
+        except Exception as e:
+            debug_logger.error(f"generate_session_summary: Error with prompt: {e}")
+            return f"Error preparing prompt: {e}"
         
         try:
+            debug_logger.debug("generate_session_summary: Checking LLM availability")
             if llm is None:
+                debug_logger.error("generate_session_summary: LLM library not available")
                 return "LLM library not available for summary generation"
             
+            debug_logger.debug("generate_session_summary: Getting model for session summary")
             model_name = get_model("session_summary")
+            debug_logger.debug(f"generate_session_summary: Got model name: {model_name}")
+            
             model = llm.get_model(model_name)
+            debug_logger.debug(f"generate_session_summary: Got model instance: {type(model)}")
+            
+            debug_logger.debug("generate_session_summary: About to call model.prompt() for summary")
             response = model.prompt(prompt)
-            return response.text()
+            debug_logger.debug("generate_session_summary: model.prompt() returned successfully")
+            
+            result = response.text()
+            debug_logger.debug(f"generate_session_summary: Got summary text, length: {len(result)}")
+            return result
             
         except Exception as e:
+            debug_logger.error(f"generate_session_summary: Error generating summary: {e}")
             return f"Error generating summary: {e}"
