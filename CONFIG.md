@@ -43,13 +43,11 @@ The activity analysis now uses **actual screenshot content** rather than just ap
 python autojournal.py --config
 ```
 
-### List Available Models
+### AI Model Management
 ```bash
+# List available models
 python autojournal.py --list-models
-```
 
-### Change AI Models
-```bash
 # Set activity analysis model
 python autojournal.py --set-model activity_analysis gpt-4o
 
@@ -61,6 +59,50 @@ python autojournal.py --set-model session_summary gpt-4o-mini
 
 # Set fallback model
 python autojournal.py --set-model fallback claude-3-haiku
+```
+
+### Prompt Management
+```bash
+# List all prompt purposes
+python autojournal.py --list-prompts
+
+# View a specific prompt
+python autojournal.py --show-prompt activity_analysis_vision
+
+# Edit a prompt (opens in $EDITOR or nano)
+python autojournal.py --edit-prompt activity_analysis_vision
+```
+
+#### Available Prompt Types
+- `activity_analysis_vision`: Analyzes screenshots with vision models
+- `activity_analysis_text`: Analyzes activity using only app names  
+- `goal_breakdown`: Converts goals into actionable tasks
+- `session_summary`: Generates productivity insights and summaries
+
+### Customizing Prompts
+
+All prompts support template variables that get filled in at runtime:
+
+**Activity Analysis Prompts:**
+- `{task_context}`: Current task description and time estimate
+- `{active_app}`: Name of the currently active application
+- `{recent_context}`: Recent activity entries for context
+
+**Goal Breakdown Prompt:**
+- `{goal_title}`: The goal title to break down
+- `{goal_description}`: Detailed goal description
+
+**Session Summary Prompt:**
+- `{task_context}`: Information about the main task worked on
+- `{activity_summary}`: Timeline of all activities during the session
+
+**Example: Customizing the vision analysis prompt**
+```bash
+# Edit the vision analysis prompt
+python autojournal.py --edit-prompt activity_analysis_vision
+
+# Make it more specific to your workflow:
+# "Focus on code quality and testing progress when analyzing development work..."
 ```
 
 ## Settings
@@ -102,7 +144,7 @@ python autojournal.py --set-model fallback claude-3-haiku
 ```json
 {
   "models": {
-    "activity_analysis": "claude-3.5-sonnet-latest",
+    "activity_analysis": "gemini-1.5-flash-latest",
     "goal_breakdown": "gpt-4o-mini", 
     "session_summary": "claude-3.5-sonnet-latest",
     "fallback": "gpt-3.5-turbo"
@@ -113,9 +155,23 @@ python autojournal.py --set-model fallback claude-3-haiku
     "analysis_timeout": 30,
     "confidence_threshold": 0.3,
     "debug_logging": false
+  },
+  "prompts": {
+    "activity_analysis_vision": "Analyze the screenshot to determine...",
+    "activity_analysis_text": "Analyze the current activity based on...",
+    "goal_breakdown": "Break down the following goal into 3-5...",
+    "session_summary": "Generate a productivity summary..."
   }
 }
 ```
+
+### Benefits of Configurable Prompts
+
+- **Workflow-specific tuning**: Customize prompts for your specific type of work
+- **Language preferences**: Adjust tone, detail level, or output format  
+- **Domain expertise**: Add domain-specific instructions for better analysis
+- **Experimentation**: A/B test different prompt strategies
+- **No code changes**: Modify behavior without touching the codebase
 
 ## Model Requirements
 
