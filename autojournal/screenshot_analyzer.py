@@ -14,7 +14,7 @@ except ImportError:
     llm = None
 
 from .models import Task, ActivityAnalysis, JournalEntry
-from .config import get_model, get_setting
+from .config import get_model, get_setting, get_prompt
 
 
 class ScreenshotAnalyzer:
@@ -147,54 +147,18 @@ $bitmap.Save('{screenshot_path}')
             for entry in recent_entries[-3:]:  # Last 3 entries
                 recent_context += f"- {entry.content}\n"
         
-        # Create different prompts based on whether we have a screenshot
+        # Get prompt from configuration based on whether we have a screenshot
         if screenshot_path and screenshot_path.exists():
-            prompt = f"""
-Analyze the screenshot to determine what the user is currently doing and whether they are on-task.
-
-{task_context}
-
-Active application: {active_app}
-
-{recent_context}
-
-Look at the screenshot and provide analysis in JSON format:
-{{
-    "description": "Detailed description of what the user is doing based on the screen content",
-    "is_on_task": true/false,
-    "progress_estimate": 0-100,
-    "confidence": 0.0-1.0
-}}
-
-Guidelines:
-- Look at the actual content on screen, not just the application name
-- If working on code, documents, or tools related to the current task, set is_on_task to true
-- If browsing social media, entertainment sites, or unrelated content, set is_on_task to false
-- Base progress estimate on visible work completion (files open, content created, etc.)
-- Set confidence based on how clearly you can determine the activity from the screenshot
-"""
+            prompt_template = get_prompt("activity_analysis_vision")
         else:
-            prompt = f"""
-Analyze the current activity based on the active application and context.
-
-{task_context}
-
-Active application: {active_app}
-
-{recent_context}
-
-Based on the active application and context, provide analysis in JSON format:
-{{
-    "description": "Brief description of what the user appears to be doing",
-    "is_on_task": true/false,
-    "progress_estimate": 0-100,
-    "confidence": 0.0-1.0
-}}
-
-Note: This analysis is based only on application name since no screenshot is available.
-If the active application suggests they're working on the current task, set is_on_task to true.
-If they appear to be browsing social media, checking email unnecessarily, or doing other non-work activities, set is_on_task to false.
-"""
+            prompt_template = get_prompt("activity_analysis_text")
+        
+        # Format the prompt with context variables
+        prompt = prompt_template.format(
+            task_context=task_context,
+            active_app=active_app,
+            recent_context=recent_context
+        )
         
         try:
             if llm is None:

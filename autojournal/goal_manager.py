@@ -12,7 +12,7 @@ except ImportError:
     llm = None
 
 from .models import Goal, Task, TaskStatus, JournalEntry
-from .config import get_model
+from .config import get_model, get_prompt
 
 
 class GoalManager:
@@ -97,20 +97,12 @@ class GoalManager:
     
     async def break_down_goal(self, goal: Goal) -> List[Task]:
         """Use LLM to break down a goal into actionable sub-tasks"""
-        prompt = f"""Break down this goal into 3-5 specific, actionable sub-tasks that can be completed in 15-60 minutes each.
-
-Goal: {goal.title}
-Description: {goal.description}
-
-Respond with ONLY valid JSON in this exact format:
-{{
-    "tasks": [
-        {{
-            "description": "Specific task description",
-            "estimated_time_minutes": 30
-        }}
-    ]
-}}"""
+        # Get prompt from configuration and format it
+        prompt_template = get_prompt("goal_breakdown")
+        prompt = prompt_template.format(
+            goal_title=goal.title,
+            goal_description=goal.description
+        )
         
         try:
             if llm is None:
@@ -293,25 +285,22 @@ Respond with ONLY valid JSON in this exact format:
             return "No activity recorded during this session."
         
         # Prepare journal content for analysis
-        journal_text = ""
+        activity_summary = ""
         for entry in journal_entries:
-            journal_text += f"[{entry.timestamp.strftime('%H:%M:%S')}] {entry.content}\n"
+            activity_summary += f"[{entry.timestamp.strftime('%H:%M:%S')}] {entry.content}\n"
         
-        prompt = f"""
-Analyze this productivity session and provide insights on efficiency and recommendations for improvement.
-
-Session Journal:
-{journal_text}
-
-Provide a summary that includes:
-1. Overview of what was accomplished
-2. Time spent on-task vs off-task
-3. Main distractions or productivity killers
-4. Recommendations for improving focus and efficiency
-5. Overall productivity rating (1-10)
-
-Keep the summary concise but actionable.
-"""
+        # Prepare task context
+        task_context = ""
+        if journal_entries and journal_entries[0].task_context:
+            task = journal_entries[0].task_context
+            task_context = f"Task: {task.description} (estimated {task.estimated_time_minutes} min)"
+        
+        # Get prompt from configuration and format it
+        prompt_template = get_prompt("session_summary")
+        prompt = prompt_template.format(
+            task_context=task_context,
+            activity_summary=activity_summary
+        )
         
         try:
             if llm is None:

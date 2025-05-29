@@ -155,6 +155,9 @@ def main():
     parser.add_argument("--set-model", nargs=2, metavar=("PURPOSE", "MODEL"), 
                        help="Set AI model for purpose (activity_analysis, goal_breakdown, session_summary, fallback)")
     parser.add_argument("--list-models", action="store_true", help="List available AI models")
+    parser.add_argument("--show-prompt", metavar="PURPOSE", help="Show prompt for purpose")
+    parser.add_argument("--edit-prompt", metavar="PURPOSE", help="Edit prompt for purpose (opens editor)")
+    parser.add_argument("--list-prompts", action="store_true", help="List all prompt purposes")
     
     args = parser.parse_args()
     
@@ -187,6 +190,60 @@ def main():
             return
         config.set_model(purpose, model_name)
         print(f"Set {purpose} model to: {model_name}")
+        return
+    
+    if args.list_prompts:
+        from autojournal.config import config
+        print("Available prompt purposes:")
+        for purpose in config.get_all_prompts().keys():
+            print(f"  {purpose}")
+        return
+    
+    if args.show_prompt:
+        from autojournal.config import config
+        purpose = args.show_prompt
+        prompt = config.get_prompt(purpose)
+        if prompt:
+            print(f"=== Prompt: {purpose} ===")
+            print(prompt)
+        else:
+            print(f"No prompt found for purpose: {purpose}")
+        return
+    
+    if args.edit_prompt:
+        from autojournal.config import config
+        import tempfile
+        import subprocess
+        import os
+        
+        purpose = args.edit_prompt
+        current_prompt = config.get_prompt(purpose)
+        if not current_prompt:
+            print(f"No prompt found for purpose: {purpose}")
+            return
+        
+        # Create temporary file with current prompt
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+            f.write(current_prompt)
+            temp_file = f.name
+        
+        try:
+            # Open editor (use EDITOR env var or default to nano)
+            editor = os.environ.get('EDITOR', 'nano')
+            subprocess.run([editor, temp_file])
+            
+            # Read back the edited content
+            with open(temp_file, 'r') as f:
+                new_prompt = f.read().strip()
+            
+            if new_prompt != current_prompt:
+                config.set_prompt(purpose, new_prompt)
+                print(f"Updated prompt for: {purpose}")
+            else:
+                print("No changes made")
+        finally:
+            # Clean up temp file
+            os.unlink(temp_file)
         return
     
     if args.debug:
