@@ -14,16 +14,27 @@ AutoJournal uses different AI models for different purposes:
 
 | Purpose | Default Model | Description |
 |---------|---------------|-------------|
-| `activity_analysis` | `claude-3.5-sonnet-latest` | Analyzes screenshots to determine if you're on-task |
+| `activity_analysis` | `gemini-1.5-flash-latest` | **Vision analysis** of screenshots to determine if you're on-task |
 | `goal_breakdown` | `gpt-4o-mini` | Breaks down high-level goals into actionable tasks |
 | `session_summary` | `claude-3.5-sonnet-latest` | Generates session summaries and productivity insights |
 | `fallback` | `gpt-3.5-turbo` | Used when primary models fail |
 
 ### Why These Models?
 
-- **Claude 3.5 Sonnet**: Excellent at understanding context and nuanced analysis
+- **Gemini 1.5 Flash**: Cost-effective vision model, excellent at analyzing screenshots of code, documents, and web content
 - **GPT-4o Mini**: Fast and cost-effective for structured task generation
+- **Claude 3.5 Sonnet**: Excellent at understanding context and generating insights
 - **GPT-3.5 Turbo**: Reliable fallback option
+
+### Vision Analysis Capabilities
+
+The activity analysis now uses **actual screenshot content** rather than just application names. This means the AI can:
+
+- **See code you're writing** and determine if it relates to your current task
+- **Read document content** to assess progress and relevance  
+- **Analyze browser content** to detect productivity vs distraction
+- **Understand context** beyond just "using Chrome" or "using VSCode"
+- **Provide accurate progress estimates** based on visible work completion
 
 ## Configuration Commands
 
@@ -108,12 +119,20 @@ python autojournal.py --set-model fallback claude-3-haiku
 
 ## Model Requirements
 
-### For Activity Analysis
-- Good at understanding context and visual descriptions
+### For Activity Analysis (Vision Models Required)
+- **Must support vision/image analysis** to see screenshot content
+- Good at understanding visual context and code/document content
 - Reliable JSON output formatting
 - Fast response times (called every 10 seconds)
+- Cost-effective for frequent use
 
-**Recommended**: Claude 3.5 Sonnet, GPT-4o, GPT-4o-mini
+**Vision-Capable Models**:
+- `gemini-1.5-flash-latest` ⭐ (Recommended - fast, cheap, excellent vision)
+- `gpt-4o-mini` (Good balance of cost and quality)
+- `gpt-4o` (Highest quality, more expensive)
+- `claude-3.5-sonnet-latest` (Excellent analysis, moderate cost)
+
+**Note**: Non-vision models will fall back to app-name-only analysis
 
 ### For Goal Breakdown  
 - Good at structured task generation
