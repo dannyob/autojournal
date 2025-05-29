@@ -48,63 +48,83 @@ class GoalManager:
         """Parse goals from markdown content with sub-tasks"""
         goals = []
         
-        # Split by top-level headers only (# not ## or ###)
-        # Handle case where first goal doesn't have leading newline
-        if content.startswith('# '):
-            content = '\n' + content
+        # Find all headers and their content
+        header_pattern = r'^(#+)\s+(.+)$'
+        lines = content.split('\n')
         
-        sections = re.split(r'\n# ', content)
+        current_goal = None
+        current_content = []
         
-        for section in sections[1:]:  # Skip first empty section
-            lines = section.strip().split('\n')
-            if not lines:
-                continue
+        for line in lines:
+            header_match = re.match(header_pattern, line.strip())
+            if header_match:
+                # Process previous goal if exists
+                if current_goal:
+                    goal = self._create_goal_from_content(current_goal, current_content)
+                    if goal:
+                        goals.append(goal)
                 
-            title = lines[0].strip()
-            
-            # Find description and sub-tasks
-            description_lines = []
-            tasks = []
-            
-            i = 1
-            # Collect description until we hit checkboxes or end
-            while i < len(lines):
-                line = lines[i].strip()
-                if line.startswith('- [ ]') or line.startswith('- [x]') or line.startswith('- [X]'):
-                    break
-                if line:  # Only add non-empty lines
-                    description_lines.append(line)
-                i += 1
-            
-            # Collect sub-tasks from checkboxes
-            while i < len(lines):
-                line = lines[i].strip()
-                if line.startswith('- [ ]'):
-                    # Pending task
-                    task_desc = line[5:].strip()  # Remove '- [ ] '
-                    if task_desc:
-                        task = Task(task_desc, 30)  # Default 30 min
-                        task.status = TaskStatus.PENDING
-                        tasks.append(task)
-                elif line.startswith('- [x]') or line.startswith('- [X]'):
-                    # Completed task
-                    task_desc = line[5:].strip()  # Remove '- [x] '
-                    if task_desc:
-                        task = Task(task_desc, 30)  # Default 30 min
-                        task.status = TaskStatus.COMPLETED
-                        task.progress_percentage = 100
-                        tasks.append(task)
-                i += 1
-            
-            description = '\n'.join(description_lines).strip()
-            if not description:
-                description = title
-                
-            goal = Goal(title=title, description=description)
-            goal.sub_tasks = tasks
-            goals.append(goal)
+                # Start new goal
+                current_goal = header_match.group(2).strip()
+                current_content = []
+            else:
+                if current_goal:  # Only collect content if we have a goal
+                    current_content.append(line)
+        
+        # Process final goal
+        if current_goal:
+            goal = self._create_goal_from_content(current_goal, current_content)
+            if goal:
+                goals.append(goal)
         
         return goals
+    
+    def _create_goal_from_content(self, title: str, content_lines: List[str]) -> Optional[Goal]:
+        """Create a goal from title and content lines"""
+        if not title:
+            return None
+            
+        # Find description and sub-tasks
+        description_lines = []
+        tasks = []
+        
+        i = 0
+        # Collect description until we hit checkboxes or end
+        while i < len(content_lines):
+            line = content_lines[i].strip()
+            if line.startswith('- [ ]') or line.startswith('- [x]') or line.startswith('- [X]'):
+                break
+            if line:  # Only add non-empty lines
+                description_lines.append(line)
+            i += 1
+        
+        # Collect sub-tasks from checkboxes
+        while i < len(content_lines):
+            line = content_lines[i].strip()
+            if line.startswith('- [ ]'):
+                # Pending task
+                task_desc = line[5:].strip()  # Remove '- [ ] '
+                if task_desc:
+                    task = Task(task_desc, 30)  # Default 30 min
+                    task.status = TaskStatus.PENDING
+                    tasks.append(task)
+            elif line.startswith('- [x]') or line.startswith('- [X]'):
+                # Completed task
+                task_desc = line[5:].strip()  # Remove '- [x] '
+                if task_desc:
+                    task = Task(task_desc, 30)  # Default 30 min
+                    task.status = TaskStatus.COMPLETED
+                    task.progress_percentage = 100
+                    tasks.append(task)
+            i += 1
+        
+        description = '\n'.join(description_lines).strip()
+        if not description:
+            description = title
+            
+        goal = Goal(title=title, description=description)
+        goal.sub_tasks = tasks
+        return goal
     
     async def break_down_goal(self, goal: Goal) -> List[Task]:
         """Use LLM to break down a goal into actionable sub-tasks"""
