@@ -315,7 +315,16 @@ class AutoJournalTUI(App):
             # Get tasks in background thread
             with concurrent.futures.ThreadPoolExecutor() as executor:
                 future = executor.submit(get_tasks)
-                available_tasks = future.result(timeout=15)  # 15 second timeout for LLM calls
+                try:
+                    available_tasks = future.result(timeout=30)  # 30 second timeout for LLM calls
+                except concurrent.futures.TimeoutError:
+                    debug_file = Path.home() / ".autojournal-debug.log"
+                    with open(debug_file, "a") as f:
+                        from datetime import datetime
+                        timestamp = datetime.now().strftime("%H:%M:%S")
+                        f.write(f"{timestamp}: TIMEOUT: LLM calls took longer than 30 seconds\n")
+                    self.notify("LLM calls timed out. Using cached goals or try again later.")
+                    available_tasks = []
             
             if available_tasks:
                 def handle_task_selection(selected_task):
@@ -352,9 +361,19 @@ class AutoJournalTUI(App):
                 self.notify("No tasks available!")
                 self.exit()
             
+        except concurrent.futures.TimeoutError:
+            self.notify("Task loading timed out. Starting without task selection.")
+            # Continue without selecting a task - user can pick one later with 'n' key
         except Exception as e:
-            self.notify(f"Error loading tasks: {e}")
-            self.exit()
+            debug_file = Path.home() / ".autojournal-debug.log"
+            with open(debug_file, "a") as f:
+                from datetime import datetime
+                timestamp = datetime.now().strftime("%H:%M:%S")
+                f.write(f"{timestamp}: EXCEPTION in _show_initial_task_picker: {e}\n")
+                import traceback
+                traceback.print_exception(type(e), e, e.__traceback__, file=f)
+            self.notify(f"Error loading tasks: {e}. Starting without task selection.")
+            # Continue without selecting a task - user can pick one later with 'n' key
     
     def _read_current_task_file(self) -> str:
         """Read the ~/.current-task file content"""
@@ -474,7 +493,16 @@ class AutoJournalTUI(App):
             # Get tasks in background thread
             with concurrent.futures.ThreadPoolExecutor() as executor:
                 future = executor.submit(get_tasks)
-                available_tasks = future.result(timeout=15)  # 15 second timeout for LLM calls
+                try:
+                    available_tasks = future.result(timeout=30)  # 30 second timeout for LLM calls
+                except concurrent.futures.TimeoutError:
+                    debug_file = Path.home() / ".autojournal-debug.log"
+                    with open(debug_file, "a") as f:
+                        from datetime import datetime
+                        timestamp = datetime.now().strftime("%H:%M:%S")
+                        f.write(f"{timestamp}: TIMEOUT: LLM calls took longer than 30 seconds\n")
+                    self.notify("LLM calls timed out. Using cached goals or try again later.")
+                    available_tasks = []
             
             if available_tasks:
                 def handle_task_selection(selected_task):
@@ -509,7 +537,16 @@ class AutoJournalTUI(App):
             else:
                 self.notify("No available tasks found!")
                 
+        except concurrent.futures.TimeoutError:
+            self.notify("Task loading timed out. Try again later.")
         except Exception as e:
+            debug_file = Path.home() / ".autojournal-debug.log"
+            with open(debug_file, "a") as f:
+                from datetime import datetime
+                timestamp = datetime.now().strftime("%H:%M:%S")
+                f.write(f"{timestamp}: EXCEPTION in action_pick_new_task: {e}\n")
+                import traceback
+                traceback.print_exception(type(e), e, e.__traceback__, file=f)
             self.notify(f"Error loading tasks: {e}")
     
     def action_quit_app(self) -> None:
