@@ -457,6 +457,9 @@ class AutoJournalTUI(App):
     
     def action_quit_app(self) -> None:
         """End session and quit application"""
+        # Show progress indicator
+        self.notify("Ending session...")
+        
         # Ensure mouse tracking is disabled before exit
         import sys
         sys.stdout.write('\033[?1000l')  # Disable basic mouse tracking
@@ -468,8 +471,29 @@ class AutoJournalTUI(App):
         # Clean up current task file
         self._cleanup_current_task_file()
         
-        asyncio.create_task(self.autojournal_app.end_session())
-        self.exit()
+        # Run end session in background and exit when done
+        self.run_worker(self._end_session_and_exit(), exclusive=True)
+    
+    async def _end_session_and_exit(self) -> None:
+        """End session with progress updates and then exit"""
+        try:
+            # Update progress
+            self.notify("Generating session summary...")
+            
+            # End the session (this is the slow part)
+            await self.autojournal_app.end_session()
+            
+            # Final cleanup
+            self.notify("Cleaning up...")
+            
+            # Exit after a brief moment
+            import asyncio
+            await asyncio.sleep(0.1)
+            self.exit()
+            
+        except Exception as e:
+            self.notify(f"Error ending session: {e}")
+            self.exit()
     
     def _cleanup_current_task_file(self) -> None:
         """Clear the current task file"""

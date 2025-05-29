@@ -133,13 +133,18 @@ class AutoJournal:
         if self.current_task:
             await self.journal_manager.log_session_end()
         
-        # Generate efficiency summary
-        summary = await self.goal_manager.generate_session_summary(
-            self.journal_manager.get_all_entries()
-        )
-        
-        print("\n=== Session Summary ===")
-        print(summary)
+        # Generate efficiency summary (this is the slow part)
+        try:
+            summary = await self.goal_manager.generate_session_summary(
+                self.journal_manager.get_all_entries()
+            )
+            
+            print("\n=== Session Summary ===")
+            print(summary)
+        except Exception as e:
+            print(f"\n=== Session Summary (Error) ===")
+            print(f"Could not generate summary: {e}")
+            print("Session ended successfully.")
         
     def stop(self):
         """Stop the monitoring loop"""
