@@ -27,7 +27,7 @@ class AutoJournalConfig:
     
     # Default prompts for different AI purposes
     DEFAULT_PROMPTS = {
-        "activity_analysis_vision": """Analyze the screenshot to determine what the user is currently doing and whether they are on-task.
+        "activity_analysis_vision": """Analyze the screenshot to determine what the user is currently doing and whether they are working on their SPECIFIC assigned task.
 
 {task_context}
 
@@ -43,14 +43,27 @@ Look at the screenshot and provide analysis in JSON format:
     "confidence": 0.0-1.0
 }}
 
-Guidelines:
-- Look at the actual content on screen, not just the application name
-- If working on code, documents, or tools related to the current task, set is_on_task to true
-- If browsing social media, entertainment sites, or unrelated content, set is_on_task to false
-- Base progress estimate on visible work completion (files open, content created, etc.)
-- Set confidence based on how clearly you can determine the activity from the screenshot""",
+CRITICAL: Only set is_on_task=true if the visible work directly contributes to the SPECIFIC task above.
+
+Guidelines for is_on_task assessment:
+✅ ON-TASK (true):
+- Working on files, documents, or code directly related to the assigned task
+- Research, planning, or tools that clearly support the current task
+- Communication/emails specifically about the current task
+
+❌ OFF-TASK (false):
+- Working on different projects, even if productive work
+- Social media, entertainment, news, or personal browsing
+- Email/messaging unrelated to the current task
+- Documentation or planning for other tasks/projects
+- Even high-quality work that doesn't match the assigned task
+
+If you see focused work on something other than the assigned task, flag it as OFF-TASK and mention "working on different task" in the description.
+
+Base progress estimate on visible completion of the ASSIGNED task only.
+Set confidence based on how clearly you can determine task alignment from the screenshot.""",
         
-        "activity_analysis_text": """Analyze the current activity based on the active application and context.
+        "activity_analysis_text": """Analyze the current activity based on the active application and context to determine if they are working on their SPECIFIC assigned task.
 
 {task_context}
 
@@ -66,9 +79,23 @@ Based on the active application and context, provide analysis in JSON format:
     "confidence": 0.0-1.0
 }}
 
-Note: This analysis is based only on application name since no screenshot is available.
-If the active application suggests they're working on the current task, set is_on_task to true.
-If they appear to be browsing social media, checking email unnecessarily, or doing other non-work activities, set is_on_task to false.""",
+CRITICAL: Only set is_on_task=true if the activity likely contributes to the SPECIFIC task above.
+
+Guidelines for is_on_task assessment:
+✅ ON-TASK (true):
+- Using development tools (IDE, terminal) when task involves coding
+- Using document editors when task involves writing/documentation  
+- Using task-specific applications that match the assigned work
+
+❌ OFF-TASK (false):
+- Social media, entertainment, news applications
+- Email/messaging unless specifically task-related
+- Different development projects (even if productive work)
+- Applications that don't align with the current task type
+
+Note: This analysis is based only on application name and recent context since no screenshot is available.
+Use recent context to determine if the current application use aligns with the assigned task pattern.
+If recent entries show work on different tasks, be more skeptical about current activity.""",
         
         "goal_breakdown": """Break down the following goal into 3-5 actionable sub-tasks that can be completed in a work session.
 
