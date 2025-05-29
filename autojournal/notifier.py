@@ -41,14 +41,19 @@ class NotificationManager:
         # Try plyer first (most cross-platform)
         if PLYER_AVAILABLE:
             try:
-                # Test plyer with a dummy notification
-                plyer.notification.notify(
-                    title="AutoJournal Test",
-                    message="Testing notification system...",
-                    timeout=1,
-                    app_name=self.app_name
-                )
-                return "plyer"
+                # Check if plyer can import its notification module without actually sending
+                # This avoids the pyobjus dependency issue on macOS
+                from plyer import notification
+                # Only use plyer if we're not on macOS (where osascript works better)
+                if self.system != "Darwin":
+                    # Test plyer with a dummy notification
+                    plyer.notification.notify(
+                        title="AutoJournal Test",
+                        message="Testing notification system...",
+                        timeout=1,
+                        app_name=self.app_name
+                    )
+                    return "plyer"
             except Exception:
                 pass
         
@@ -128,11 +133,24 @@ class NotificationManager:
     
     def _notify_osascript(self, title: str, message: str) -> bool:
         """Send notification using macOS osascript"""
-        script = f'''
-        display notification "{message}" with title "{self.app_name}" subtitle "{title}"
+        # For off-task notifications, use a brief alert that auto-dismisses
+        # This ensures the user sees it even if notifications are disabled
+        dialog_script = f'''
+        display alert "{title}" message "{message}" as warning giving up after 3
         '''
-        subprocess.run(["osascript", "-e", script], check=True)
-        return True
+        try:
+            subprocess.run(["osascript", "-e", dialog_script], check=True)
+            return True
+        except Exception:
+            # Fallback to simple dialog
+            try:
+                simple_script = f'''
+                display dialog "{title}\\n{message}" buttons {{"Dismiss"}} default button "Dismiss" giving up after 3
+                '''
+                subprocess.run(["osascript", "-e", simple_script], check=True)
+                return True
+            except Exception:
+                return False
     
     def _notify_linux(self, title: str, message: str, urgency: str, icon: str, timeout: int) -> bool:
         """Send notification using Linux notify-send"""
