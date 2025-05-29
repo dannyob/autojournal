@@ -99,6 +99,12 @@ class AutoJournal:
         """Update the current task description"""
         if self.current_task:
             old_desc = self.current_task.description
+            
+            # Update task description in goal manager and save to goals.md
+            if self.goal_manager.update_task_description(self.current_task, new_description):
+                self.goal_manager.save_goals_to_file(self.goals_file)
+            
+            # Update current task object
             self.current_task.description = new_description
             self.journal_manager.set_current_task(self.current_task)
             await self.journal_manager.log_task_clarification(old_desc, new_description)

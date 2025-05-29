@@ -331,6 +331,16 @@ class GoalManager:
                     return True
         return False
     
+    def update_task_description(self, target_task: Task, new_description: str) -> bool:
+        """Update a specific task's description in the goals list"""
+        for goal in self.goals:
+            for task in goal.sub_tasks:
+                if (task.description == target_task.description and 
+                    task.estimated_time_minutes == target_task.estimated_time_minutes):
+                    task.description = new_description
+                    return True
+        return False
+    
     def save_goals_to_file(self, goals_file: Path) -> None:
         """Save goals with task status back to markdown file using checkbox format"""
         try:
