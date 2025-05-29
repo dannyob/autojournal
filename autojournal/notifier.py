@@ -75,8 +75,9 @@ class NotificationManager:
     def _command_exists(self, command: str) -> bool:
         """Check if a command exists on the system"""
         try:
-            subprocess.run([command], capture_output=True, check=False)
-            return True
+            # Use 'which' command to check if the command exists
+            result = subprocess.run(["which", command], capture_output=True, check=False)
+            return result.returncode == 0
         except (subprocess.SubprocessError, FileNotFoundError):
             return False
     
