@@ -1,5 +1,6 @@
 """Screenshot capture and AI analysis"""
 
+import asyncio
 import subprocess
 import tempfile
 import json
@@ -24,7 +25,7 @@ class ScreenshotAnalyzer:
         self.screenshot_dir = Path.home() / ".autojournal" / "screenshots"
         self.screenshot_dir.mkdir(parents=True, exist_ok=True)
     
-    def _take_screenshot(self) -> Optional[Path]:
+    async def _take_screenshot(self) -> Optional[Path]:
         """Take a screenshot and return the file path"""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         screenshot_path = self.screenshot_dir / f"screenshot_{timestamp}.png"
@@ -33,13 +34,23 @@ class ScreenshotAnalyzer:
             system = platform.system()
             
             if system == "Darwin":  # macOS
-                subprocess.run([
-                    "screencapture", "-x", "-t", "png", str(screenshot_path)
-                ], check=True)
+                process = await asyncio.create_subprocess_exec(
+                    "screencapture", "-x", "-t", "png", str(screenshot_path),
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                await process.communicate()
+                if process.returncode != 0:
+                    raise subprocess.CalledProcessError(process.returncode, "screencapture")
             elif system == "Linux":
-                subprocess.run([
-                    "gnome-screenshot", "-f", str(screenshot_path)
-                ], check=True)
+                process = await asyncio.create_subprocess_exec(
+                    "gnome-screenshot", "-f", str(screenshot_path),
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                await process.communicate()
+                if process.returncode != 0:
+                    raise subprocess.CalledProcessError(process.returncode, "gnome-screenshot")
             elif system == "Windows":
                 # Use PowerShell for Windows
                 ps_script = f"""
@@ -51,9 +62,14 @@ $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
 $graphics.CopyFromScreen($Screen.Left, $Screen.Top, 0, 0, $bitmap.Size)
 $bitmap.Save('{screenshot_path}')
 """
-                subprocess.run([
-                    "powershell", "-Command", ps_script
-                ], check=True)
+                process = await asyncio.create_subprocess_exec(
+                    "powershell", "-Command", ps_script,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                await process.communicate()
+                if process.returncode != 0:
+                    raise subprocess.CalledProcessError(process.returncode, "powershell")
             else:
                 print(f"Unsupported platform: {system}")
                 return None
@@ -67,7 +83,7 @@ $bitmap.Save('{screenshot_path}')
             print(f"Error taking screenshot: {e}")
             return None
     
-    def _get_active_application(self) -> str:
+    async def _get_active_application(self) -> str:
         """Get the name of the currently active application"""
         try:
             system = platform.system()
@@ -79,26 +95,44 @@ $bitmap.Save('{screenshot_path}')
                 end tell
                 return frontApp
                 '''
-                result = subprocess.run([
-                    "osascript", "-e", script
-                ], capture_output=True, text=True, check=True)
-                return result.stdout.strip()
+                process = await asyncio.create_subprocess_exec(
+                    "osascript", "-e", script,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                    text=True
+                )
+                stdout, _ = await process.communicate()
+                if process.returncode == 0:
+                    return stdout.strip()
+                else:
+                    return "Unknown"
                 
             elif system == "Linux":
                 # Try different methods for Linux
                 try:
-                    result = subprocess.run([
-                        "xdotool", "getactivewindow", "getwindowname"
-                    ], capture_output=True, text=True, check=True)
-                    return result.stdout.strip()
+                    process = await asyncio.create_subprocess_exec(
+                        "xdotool", "getactivewindow", "getwindowname",
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE,
+                        text=True
+                    )
+                    stdout, _ = await process.communicate()
+                    if process.returncode == 0:
+                        return stdout.strip()
                 except:
                     try:
-                        result = subprocess.run([
-                            "xprop", "-id", "$(xprop -root _NET_ACTIVE_WINDOW | cut -d' ' -f5)", "WM_CLASS"
-                        ], capture_output=True, text=True, check=True, shell=True)
-                        return result.stdout.strip()
+                        process = await asyncio.create_subprocess_shell(
+                            "xprop -id $(xprop -root _NET_ACTIVE_WINDOW | cut -d' ' -f5) WM_CLASS",
+                            stdout=asyncio.subprocess.PIPE,
+                            stderr=asyncio.subprocess.PIPE,
+                            text=True
+                        )
+                        stdout, _ = await process.communicate()
+                        if process.returncode == 0:
+                            return stdout.strip()
                     except:
-                        return "Unknown"
+                        pass
+                return "Unknown"
                         
             elif system == "Windows":
                 ps_script = '''
@@ -118,10 +152,17 @@ $bitmap.Save('{screenshot_path}')
                 [Win32]::GetWindowText($hwnd, $text, $text.Capacity)
                 $text.ToString()
                 '''
-                result = subprocess.run([
-                    "powershell", "-Command", ps_script
-                ], capture_output=True, text=True, check=True)
-                return result.stdout.strip()
+                process = await asyncio.create_subprocess_exec(
+                    "powershell", "-Command", ps_script,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                    text=True
+                )
+                stdout, _ = await process.communicate()
+                if process.returncode == 0:
+                    return stdout.strip()
+                else:
+                    return "Unknown"
             
         except Exception as e:
             print(f"Error getting active application: {e}")
@@ -132,9 +173,21 @@ $bitmap.Save('{screenshot_path}')
                                      recent_entries: List[JournalEntry]) -> ActivityAnalysis:
         """Analyze current screen activity and determine if user is on-task"""
         
-        # Take screenshot
-        screenshot_path = self._take_screenshot()
-        active_app = self._get_active_application()
+        # Take screenshot and get active app concurrently
+        screenshot_task = asyncio.create_task(self._take_screenshot())
+        active_app_task = asyncio.create_task(self._get_active_application())
+        
+        screenshot_path, active_app = await asyncio.gather(
+            screenshot_task, active_app_task, return_exceptions=True
+        )
+        
+        # Handle exceptions
+        if isinstance(screenshot_path, Exception):
+            print(f"Screenshot failed: {screenshot_path}")
+            screenshot_path = None
+        if isinstance(active_app, Exception):
+            print(f"Active app detection failed: {active_app}")
+            active_app = "Unknown"
         
         # Prepare context for AI analysis
         task_context = ""
@@ -161,37 +214,8 @@ $bitmap.Save('{screenshot_path}')
         )
         
         try:
-            if llm is None:
-                raise ImportError("llm library not available")
-            
-            model_name = get_model("activity_analysis")
-            model = llm.get_model(model_name)
-            
-            # Check if we have a screenshot and if the model supports vision
-            if screenshot_path and screenshot_path.exists():
-                # Try to use vision model with screenshot
-                try:
-                    # Create attachment with explicit MIME type
-                    attachment = llm.Attachment(type="image/png", path=str(screenshot_path))
-                    response = model.prompt(prompt, attachments=[attachment])
-                    response_text = response.text()
-                except Exception as vision_error:
-                    print(f"Vision analysis failed: {vision_error}")
-                    # Fall back to text-only analysis
-                    response = model.prompt(prompt)
-                    response_text = response.text()
-            else:
-                # No screenshot available, use text-only analysis
-                response = model.prompt(prompt)
-                response_text = response.text()
-            
-            # Try to extract JSON from response
-            import re
-            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
-            if json_match:
-                analysis_data = json.loads(json_match.group())
-            else:
-                raise ValueError("No JSON found in response")
+            # Run LLM analysis in a thread to avoid blocking
+            analysis_data = await asyncio.to_thread(self._run_llm_analysis, prompt, screenshot_path)
             
             return ActivityAnalysis(
                 timestamp=datetime.now(),
@@ -244,3 +268,37 @@ $bitmap.Save('{screenshot_path}')
         
         # Default to on-task for unknown apps
         return True
+    
+    def _run_llm_analysis(self, prompt: str, screenshot_path: Optional[Path]) -> dict:
+        """Run LLM analysis synchronously in a thread"""
+        if llm is None:
+            raise ImportError("llm library not available")
+        
+        model_name = get_model("activity_analysis")
+        model = llm.get_model(model_name)
+        
+        # Check if we have a screenshot and if the model supports vision
+        if screenshot_path and screenshot_path.exists():
+            # Try to use vision model with screenshot
+            try:
+                # Create attachment with explicit MIME type
+                attachment = llm.Attachment(type="image/png", path=str(screenshot_path))
+                response = model.prompt(prompt, attachments=[attachment])
+                response_text = response.text()
+            except Exception as vision_error:
+                print(f"Vision analysis failed: {vision_error}")
+                # Fall back to text-only analysis
+                response = model.prompt(prompt)
+                response_text = response.text()
+        else:
+            # No screenshot available, use text-only analysis
+            response = model.prompt(prompt)
+            response_text = response.text()
+        
+        # Try to extract JSON from response
+        import re
+        json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+        if json_match:
+            return json.loads(json_match.group())
+        else:
+            raise ValueError("No JSON found in response")
