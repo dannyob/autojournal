@@ -17,6 +17,7 @@ dependencies = [
     "anthropic>=0.3.0",
     "llm-anthropic>=0.17",
     "llm-gemini>=0.21",
+    "plyer>=2.0.0",
 ]
 
 [project.scripts]
