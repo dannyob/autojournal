@@ -43,6 +43,17 @@ The activity analysis now uses **actual screenshot content** rather than just ap
 python autojournal.py --config
 ```
 
+### Generate Default Configuration
+```bash
+# Generate default config (if none exists)
+python autojournal.py --generate-config
+
+# Force overwrite existing config with defaults
+python autojournal.py --generate-config --force
+```
+
+**Note**: AutoJournal automatically creates a default configuration file at `~/.autojournal/config.json` when you first run it. The `--generate-config` command is useful for resetting to defaults or creating the config file explicitly.
+
 ### AI Model Management
 ```bash
 # List available models
