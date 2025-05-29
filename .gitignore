@@ -172,3 +172,9 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# AutoJournal user files
+goals.md
+journal-*.md
+debug.log
+*.debug
