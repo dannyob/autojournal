@@ -477,58 +477,62 @@ class AutoJournalTUI(App):
     
     def take_screenshot_and_analyze(self) -> None:
         """Take screenshot and analyze activity (called by timer)"""
+        # Use Textual's run_worker to handle async work properly
+        self.run_worker(self._do_screenshot_analysis(), exclusive=False)
+    
+    async def _do_screenshot_analysis(self) -> None:
+        """Async method to perform screenshot analysis"""
         try:
             # Add debug logging
             debug_file = Path.home() / ".autojournal-debug.log"
             with open(debug_file, "a") as f:
                 from datetime import datetime
                 timestamp = datetime.now().strftime("%H:%M:%S")
-                f.write(f"{timestamp}: take_screenshot_and_analyze called\n")
+                f.write(f"{timestamp}: Starting screenshot analysis...\n")
             
-            # Use asyncio.create_task to run in the existing event loop
-            import asyncio
+            analysis = await self.autojournal_app.screenshot_analyzer.analyze_current_activity(
+                self.autojournal_app.current_task,
+                self.autojournal_app.journal_manager.get_recent_entries()
+            )
             
-            async def run_analysis():
-                analysis = await self.autojournal_app.screenshot_analyzer.analyze_current_activity(
-                    self.autojournal_app.current_task,
-                    self.autojournal_app.journal_manager.get_recent_entries()
-                )
-                
-                # Send notification if user is off-task
-                if not analysis.is_on_task and self.autojournal_app.current_task:
-                    current_activity = f"{analysis.description} (using {analysis.current_app})"
-                    expected_task = self.autojournal_app.current_task.description
-                    
-                    # Send notification in a separate thread to avoid blocking
-                    import threading
-                    
-                    def send_notification():
-                        try:
-                            self.notifier.notify_off_task(current_activity, expected_task)
-                        except Exception as e:
-                            # Log notification errors but don't crash
-                            debug_file = Path.home() / ".autojournal-debug.log"
-                            with open(debug_file, "a") as f:
-                                from datetime import datetime
-                                timestamp = datetime.now().strftime("%H:%M:%S")
-                                f.write(f"{timestamp}: Notification error: {e}\n")
-                    
-                    threading.Thread(target=send_notification, daemon=True).start()
-                
-                # Log the analysis
-                await self.autojournal_app.journal_manager.log_activity(analysis)
-                return analysis
-            
-            # Schedule the analysis to run in the existing event loop
-            asyncio.create_task(run_analysis())
-            
-            # Log that we scheduled the analysis
+            # Log analysis result
             with open(debug_file, "a") as f:
                 timestamp = datetime.now().strftime("%H:%M:%S")
-                f.write(f"{timestamp}: screenshot analysis scheduled\n")
+                f.write(f"{timestamp}: Analysis complete - on_task: {analysis.is_on_task}, description: {analysis.description}\n")
+            
+            # Send notification if user is off-task
+            if not analysis.is_on_task and self.autojournal_app.current_task:
+                current_activity = f"{analysis.description} (using {analysis.current_app})"
+                expected_task = self.autojournal_app.current_task.description
+                
+                # Log notification attempt
+                with open(debug_file, "a") as f:
+                    timestamp = datetime.now().strftime("%H:%M:%S")
+                    f.write(f"{timestamp}: Sending off-task notification: {current_activity}\n")
+                
+                # Send notification in a separate thread to avoid blocking
+                import threading
+                
+                def send_notification():
+                    try:
+                        result = self.notifier.notify_off_task(current_activity, expected_task)
+                        # Log notification result
+                        with open(debug_file, "a") as f:
+                            timestamp = datetime.now().strftime("%H:%M:%S")
+                            f.write(f"{timestamp}: Notification sent successfully: {result}\n")
+                    except Exception as e:
+                        # Log notification errors but don't crash
+                        with open(debug_file, "a") as f:
+                            timestamp = datetime.now().strftime("%H:%M:%S")
+                            f.write(f"{timestamp}: Notification error: {e}\n")
+                
+                threading.Thread(target=send_notification, daemon=True).start()
+            
+            # Log the analysis
+            await self.autojournal_app.journal_manager.log_activity(analysis)
             
         except Exception as e:
-            # Don't crash the TUI if analysis fails
+            # Log any errors in analysis
             debug_file = Path.home() / ".autojournal-debug.log"
             with open(debug_file, "a") as f:
                 from datetime import datetime
@@ -536,7 +540,6 @@ class AutoJournalTUI(App):
                 f.write(f"{timestamp}: Analysis error: {e}\n")
                 import traceback
                 traceback.print_exception(type(e), e, e.__traceback__, file=f)
-            print(f"Analysis error: {e}")
     
     def show_task_picker(self, available_tasks: list, callback):
         """Show task selection modal"""
