@@ -17,6 +17,11 @@ from .config import get_setting
 class TaskClarificationModal(ModalScreen):
     """Modal for clarifying/editing task description"""
     
+    BINDINGS = [
+        ("enter", "submit", "Submit"),
+        ("escape", "cancel", "Cancel"),
+    ]
+    
     def __init__(self, current_description: str):
         super().__init__()
         self.current_description = current_description
@@ -41,6 +46,21 @@ class TaskClarificationModal(ModalScreen):
             ),
             classes="modal"
         )
+    
+    def action_submit(self) -> None:
+        """Submit the form when Enter is pressed"""
+        input_widget = self.query_one("#task-input", Input)
+        self.new_description = input_widget.value
+        self.dismiss(self.new_description)
+    
+    def action_cancel(self) -> None:
+        """Cancel the form when Escape is pressed"""
+        self.dismiss(None)
+    
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        """Handle Enter key being pressed in the input field"""
+        if event.input.id == "task-input":
+            self.action_submit()
     
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "save":
@@ -158,7 +178,7 @@ class AutoJournalTUI(App):
         background: $surface;
         border: solid $accent;
         width: 60;
-        height: 10;
+        height: 12;
         padding: 1;
     }
     
