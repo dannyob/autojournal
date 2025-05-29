@@ -14,6 +14,7 @@ except ImportError:
     llm = None
 
 from .models import Task, ActivityAnalysis, JournalEntry
+from .config import get_model, get_setting
 
 
 class ScreenshotAnalyzer:
@@ -174,7 +175,8 @@ Estimate progress as a percentage of the current task completion.
             
             # For now, analyze without the screenshot image (would need vision model)
             # Future enhancement: use vision-capable model with screenshot
-            model = llm.get_model("claude-3.5-sonnet-latest")
+            model_name = get_model("activity_analysis")
+            model = llm.get_model(model_name)
             response = model.prompt(prompt)
             response_text = response.text()
             

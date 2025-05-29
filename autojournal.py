@@ -151,8 +151,43 @@ def main():
     parser.add_argument("goals_file", nargs="?", default="goals.md", 
                        help="Path to goals markdown file (default: goals.md)")
     parser.add_argument("--debug", action="store_true", help="Enable debug output")
+    parser.add_argument("--config", action="store_true", help="Show configuration and exit")
+    parser.add_argument("--set-model", nargs=2, metavar=("PURPOSE", "MODEL"), 
+                       help="Set AI model for purpose (activity_analysis, goal_breakdown, session_summary, fallback)")
+    parser.add_argument("--list-models", action="store_true", help="List available AI models")
     
     args = parser.parse_args()
+    
+    # Handle configuration commands
+    if args.config:
+        from autojournal.config import config
+        config.print_config()
+        return
+    
+    if args.list_models:
+        try:
+            import llm
+            print("Available AI models:")
+            models = llm.get_models()
+            for model in models:
+                print(f"  {model.model_id}")
+        except ImportError:
+            print("llm library not installed")
+        except Exception as e:
+            print(f"Error listing models: {e}")
+        return
+    
+    if args.set_model:
+        from autojournal.config import config
+        purpose, model_name = args.set_model
+        valid_purposes = ["activity_analysis", "goal_breakdown", "session_summary", "fallback"]
+        if purpose not in valid_purposes:
+            print(f"Error: Invalid purpose '{purpose}'")
+            print(f"Valid purposes: {', '.join(valid_purposes)}")
+            return
+        config.set_model(purpose, model_name)
+        print(f"Set {purpose} model to: {model_name}")
+        return
     
     if args.debug:
         print(f"[DEBUG] Starting AutoJournal with goals file: {args.goals_file}")

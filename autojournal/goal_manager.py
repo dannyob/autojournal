@@ -12,6 +12,7 @@ except ImportError:
     llm = None
 
 from .models import Goal, Task, TaskStatus, JournalEntry
+from .config import get_model
 
 
 class GoalManager:
@@ -115,17 +116,19 @@ Respond with ONLY valid JSON in this exact format:
             if llm is None:
                 raise ImportError("llm library not available")
             
-            # Use the llm Python library with available model
+            # Use the llm Python library with configured model
             try:
-                # Try to use gpt-3.5-turbo as it's commonly available
-                model = llm.get_model("gpt-3.5-turbo")
+                # Try to use configured model for goal breakdown
+                model_name = get_model("goal_breakdown")
+                model = llm.get_model(model_name)
                 response = model.prompt(prompt)
                 response_text = response.text()
             except Exception as model_error:
                 print(f"LLM model error: {model_error}")
-                # Try with any available model as fallback
+                # Try with fallback model
                 try:
-                    model = llm.get_model("4o-mini")  # Try GPT-4o-mini
+                    fallback_model = get_model("fallback")
+                    model = llm.get_model(fallback_model)
                     response = model.prompt(prompt)
                     response_text = response.text()
                 except Exception as fallback_error:
@@ -314,7 +317,8 @@ Keep the summary concise but actionable.
             if llm is None:
                 return "LLM library not available for summary generation"
             
-            model = llm.get_model()
+            model_name = get_model("session_summary")
+            model = llm.get_model(model_name)
             response = model.prompt(prompt)
             return response.text()
             

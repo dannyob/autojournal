@@ -11,6 +11,7 @@ from textual.screen import ModalScreen
 from textual import events
 
 from .models import Task
+from .config import get_setting
 
 
 class TaskClarificationModal(ModalScreen):
@@ -240,7 +241,8 @@ class AutoJournalTUI(App):
         
         self.set_interval(1.0, self.update_display)
         # Start monitoring loop in background
-        self.set_interval(10.0, self.take_screenshot_and_analyze)
+        screenshot_interval = get_setting("screenshot_interval")
+        self.set_interval(float(screenshot_interval), self.take_screenshot_and_analyze)
         
         # Show task picker if no task is selected
         if not self.autojournal_app.current_task:
