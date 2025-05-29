@@ -314,17 +314,53 @@ class AutoJournalTUI(App):
             self.notify(f"Error loading tasks: {e}")
             self.exit()
     
+    def _read_current_task_file(self) -> str:
+        """Read the ~/.current-task file content"""
+        try:
+            current_task_file = Path.home() / ".current-task"
+            if current_task_file.exists():
+                content = current_task_file.read_text().strip()
+                return content if content else "No task active"
+            return "No task active"
+        except Exception:
+            return "No task active"
+    
     def update_display(self) -> None:
         """Update the display with current information"""
-        # Get current task info
-        if self.autojournal_app.current_task:
-            task = self.autojournal_app.current_task
-            self.query_one("#current-task", Static).update(
-                f"{task.description} ({task.estimated_time_minutes} min)"
-            )
-            self.query_one("#progress", Static).update(
-                f"Progress: {task.progress_percentage}% | Status: {task.status.value}"
-            )
+        # Read and display current task from file (includes off-task indicator)
+        current_task_content = self._read_current_task_file()
+        
+        if current_task_content and current_task_content != "No task active":
+            # Parse the content to extract task description and other info
+            if current_task_content.startswith("Current: "):
+                # Remove "Current: " prefix for cleaner display
+                display_content = current_task_content[9:]
+                self.query_one("#current-task", Static).update(display_content)
+            else:
+                self.query_one("#current-task", Static).update(current_task_content)
+                
+            # Extract progress info if available
+            if " | " in current_task_content:
+                parts = current_task_content.split(" | ")
+                if len(parts) >= 2 and "%" in parts[1]:
+                    progress_info = " | ".join(parts[1:])  # Everything after task description
+                    self.query_one("#progress", Static).update(f"Status: {progress_info}")
+                else:
+                    # Fallback to task object info if available
+                    if self.autojournal_app.current_task:
+                        task = self.autojournal_app.current_task
+                        self.query_one("#progress", Static).update(
+                            f"Progress: {task.progress_percentage}% | Status: {task.status.value}"
+                        )
+            elif self.autojournal_app.current_task:
+                # Fallback to task object info if file parsing fails
+                task = self.autojournal_app.current_task
+                self.query_one("#progress", Static).update(
+                    f"Progress: {task.progress_percentage}% | Status: {task.status.value}"
+                )
+        else:
+            self.query_one("#current-task", Static).update("No task loaded")
+            self.query_one("#progress", Static).update("Progress: 0%")
         
         # Update activity status
         recent_entries = self.autojournal_app.journal_manager.get_recent_entries(1)
