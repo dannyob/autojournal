@@ -10,10 +10,10 @@ class AutoJournalConfig:
     
     # Default model configurations
     DEFAULT_MODELS = {
-        "activity_analysis": "claude-3.5-sonnet-latest",  # For screenshot analysis
-        "goal_breakdown": "gpt-4o-mini",                  # For breaking goals into tasks
-        "session_summary": "claude-3.5-sonnet-latest",   # For generating session summaries
-        "fallback": "gpt-3.5-turbo"                      # Fallback model for any failures
+        "activity_analysis": "gpt-4o-mini",              # For screenshot analysis (vision capable)
+        "goal_breakdown": "gpt-4o-mini",                 # For breaking goals into tasks
+        "session_summary": "claude-3.5-sonnet-latest",  # For generating session summaries
+        "fallback": "gpt-3.5-turbo"                     # Fallback model for any failures
     }
     
     # Default settings

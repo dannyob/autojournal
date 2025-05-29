@@ -147,8 +147,35 @@ $bitmap.Save('{screenshot_path}')
             for entry in recent_entries[-3:]:  # Last 3 entries
                 recent_context += f"- {entry.content}\n"
         
-        prompt = f"""
-Analyze the current screen activity and determine what the user is doing.
+        # Create different prompts based on whether we have a screenshot
+        if screenshot_path and screenshot_path.exists():
+            prompt = f"""
+Analyze the screenshot to determine what the user is currently doing and whether they are on-task.
+
+{task_context}
+
+Active application: {active_app}
+
+{recent_context}
+
+Look at the screenshot and provide analysis in JSON format:
+{{
+    "description": "Detailed description of what the user is doing based on the screen content",
+    "is_on_task": true/false,
+    "progress_estimate": 0-100,
+    "confidence": 0.0-1.0
+}}
+
+Guidelines:
+- Look at the actual content on screen, not just the application name
+- If working on code, documents, or tools related to the current task, set is_on_task to true
+- If browsing social media, entertainment sites, or unrelated content, set is_on_task to false
+- Base progress estimate on visible work completion (files open, content created, etc.)
+- Set confidence based on how clearly you can determine the activity from the screenshot
+"""
+        else:
+            prompt = f"""
+Analyze the current activity based on the active application and context.
 
 {task_context}
 
@@ -164,21 +191,35 @@ Based on the active application and context, provide analysis in JSON format:
     "confidence": 0.0-1.0
 }}
 
+Note: This analysis is based only on application name since no screenshot is available.
 If the active application suggests they're working on the current task, set is_on_task to true.
 If they appear to be browsing social media, checking email unnecessarily, or doing other non-work activities, set is_on_task to false.
-Estimate progress as a percentage of the current task completion.
 """
         
         try:
             if llm is None:
                 raise ImportError("llm library not available")
             
-            # For now, analyze without the screenshot image (would need vision model)
-            # Future enhancement: use vision-capable model with screenshot
             model_name = get_model("activity_analysis")
             model = llm.get_model(model_name)
-            response = model.prompt(prompt)
-            response_text = response.text()
+            
+            # Check if we have a screenshot and if the model supports vision
+            if screenshot_path and screenshot_path.exists():
+                # Try to use vision model with screenshot
+                try:
+                    # Create attachment with explicit MIME type
+                    attachment = llm.Attachment(type="image/png", path=str(screenshot_path))
+                    response = model.prompt(prompt, attachments=[attachment])
+                    response_text = response.text()
+                except Exception as vision_error:
+                    print(f"Vision analysis failed: {vision_error}")
+                    # Fall back to text-only analysis
+                    response = model.prompt(prompt)
+                    response_text = response.text()
+            else:
+                # No screenshot available, use text-only analysis
+                response = model.prompt(prompt)
+                response_text = response.text()
             
             # Try to extract JSON from response
             import re
