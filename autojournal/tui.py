@@ -74,6 +74,10 @@ class TaskClarificationModal(ModalScreen):
 class TaskSelectionModal(ModalScreen):
     """Modal for selecting a task from available goals"""
     
+    BINDINGS = [
+        ("escape", "cancel", "Cancel"),
+    ]
+    
     def __init__(self, available_tasks: list):
         super().__init__()
         self.available_tasks = available_tasks
@@ -122,6 +126,10 @@ class TaskSelectionModal(ModalScreen):
             self.dismiss(None)
         elif event.button.id == "quit":
             self.dismiss("quit")
+    
+    def action_cancel(self) -> None:
+        """Cancel the modal when Escape is pressed"""
+        self.dismiss(None)
     
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         """Handle double-click or Enter on option list items"""
