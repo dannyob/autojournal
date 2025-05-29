@@ -174,7 +174,7 @@ Estimate progress as a percentage of the current task completion.
             
             # For now, analyze without the screenshot image (would need vision model)
             # Future enhancement: use vision-capable model with screenshot
-            model = llm.get_model()
+            model = llm.get_model("claude-3.5-sonnet-latest")
             response = model.prompt(prompt)
             response_text = response.text()
             
