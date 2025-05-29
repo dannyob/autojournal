@@ -10,10 +10,10 @@ class AutoJournalConfig:
     
     # Default model configurations
     DEFAULT_MODELS = {
-        "activity_analysis": "gpt-4o-mini",              # For screenshot analysis (vision capable)
-        "goal_breakdown": "gpt-4o-mini",                 # For breaking goals into tasks
-        "session_summary": "claude-3.5-sonnet-latest",  # For generating session summaries
-        "fallback": "gpt-3.5-turbo"                     # Fallback model for any failures
+        "activity_analysis": "gemini-1.5-flash-latest", # For screenshot analysis (vision capable, cost-effective)
+        "goal_breakdown": "gpt-4o-mini",                # For breaking goals into tasks
+        "session_summary": "claude-3.5-sonnet-latest", # For generating session summaries
+        "fallback": "gpt-3.5-turbo"                    # Fallback model for any failures
     }
     
     # Default settings
@@ -133,12 +133,22 @@ Keep the summary concise but actionable."""
             except (json.JSONDecodeError, KeyError) as e:
                 print(f"Error loading config: {e}. Using defaults.")
         
-        # Return default configuration
-        return {
+        # Return default configuration and save it
+        default_config = {
             "models": self.DEFAULT_MODELS.copy(),
             "settings": self.DEFAULT_SETTINGS.copy(),
             "prompts": self.DEFAULT_PROMPTS.copy()
         }
+        
+        # Save the default configuration to file
+        try:
+            with open(self.config_file, 'w') as f:
+                json.dump(default_config, f, indent=2)
+            print(f"Created default configuration at: {self.config_file}")
+        except Exception as e:
+            print(f"Warning: Could not save default config: {e}")
+        
+        return default_config
     
     def save_config(self) -> None:
         """Save current configuration to file"""
@@ -195,6 +205,31 @@ Keep the summary concise but actionable."""
             "prompts": self.DEFAULT_PROMPTS.copy()
         }
         self.save_config()
+    
+    def generate_default_config(self, force: bool = False) -> None:
+        """Generate default configuration file"""
+        if self.config_file.exists() and not force:
+            print(f"Configuration file already exists: {self.config_file}")
+            print("Use --force to overwrite existing configuration")
+            return
+        
+        default_config = {
+            "models": self.DEFAULT_MODELS.copy(),
+            "settings": self.DEFAULT_SETTINGS.copy(),
+            "prompts": self.DEFAULT_PROMPTS.copy()
+        }
+        
+        try:
+            self.config_dir.mkdir(exist_ok=True)
+            with open(self.config_file, 'w') as f:
+                json.dump(default_config, f, indent=2)
+            print(f"Generated default configuration at: {self.config_file}")
+            
+            # Update internal config
+            self._config = default_config
+            
+        except Exception as e:
+            print(f"Error generating default config: {e}")
     
     def print_config(self) -> None:
         """Print current configuration"""

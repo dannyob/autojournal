@@ -158,6 +158,8 @@ def main():
     parser.add_argument("--show-prompt", metavar="PURPOSE", help="Show prompt for purpose")
     parser.add_argument("--edit-prompt", metavar="PURPOSE", help="Edit prompt for purpose (opens editor)")
     parser.add_argument("--list-prompts", action="store_true", help="List all prompt purposes")
+    parser.add_argument("--generate-config", action="store_true", help="Generate default configuration file")
+    parser.add_argument("--force", action="store_true", help="Force overwrite existing configuration")
     
     args = parser.parse_args()
     
@@ -244,6 +246,11 @@ def main():
         finally:
             # Clean up temp file
             os.unlink(temp_file)
+        return
+    
+    if args.generate_config:
+        from autojournal.config import config
+        config.generate_default_config(force=args.force)
         return
     
     if args.debug:
