@@ -12,7 +12,6 @@ from textual import events
 
 from .models import Task
 from .config import get_setting
-from .notifier import NotificationManager
 
 
 class TaskClarificationModal(ModalScreen):
@@ -200,8 +199,6 @@ class AutoJournalTUI(App):
         self.on_task = True
         self.last_activity = "Starting session..."
         
-        # Initialize notification manager
-        self.notifier = NotificationManager(enabled=True)
     
     def _enable_mouse_support(self) -> bool:
         """Disable mouse support to prevent coordinate output"""
@@ -500,33 +497,6 @@ class AutoJournalTUI(App):
                 timestamp = datetime.now().strftime("%H:%M:%S")
                 f.write(f"{timestamp}: Analysis complete - on_task: {analysis.is_on_task}, description: {analysis.description}\n")
             
-            # Send notification if user is off-task
-            if not analysis.is_on_task and self.autojournal_app.current_task:
-                current_activity = f"{analysis.description} (using {analysis.current_app})"
-                expected_task = self.autojournal_app.current_task.description
-                
-                # Log notification attempt
-                with open(debug_file, "a") as f:
-                    timestamp = datetime.now().strftime("%H:%M:%S")
-                    f.write(f"{timestamp}: Sending off-task notification: {current_activity}\n")
-                
-                # Send notification in a separate thread to avoid blocking
-                import threading
-                
-                def send_notification():
-                    try:
-                        result = self.notifier.notify_off_task(current_activity, expected_task)
-                        # Log notification result
-                        with open(debug_file, "a") as f:
-                            timestamp = datetime.now().strftime("%H:%M:%S")
-                            f.write(f"{timestamp}: Notification sent successfully: {result}\n")
-                    except Exception as e:
-                        # Log notification errors but don't crash
-                        with open(debug_file, "a") as f:
-                            timestamp = datetime.now().strftime("%H:%M:%S")
-                            f.write(f"{timestamp}: Notification error: {e}\n")
-                
-                threading.Thread(target=send_notification, daemon=True).start()
             
             # Log the analysis
             await self.autojournal_app.journal_manager.log_activity(analysis)
