@@ -141,6 +141,7 @@ class AutoJournalTUI(App):
         border: solid $accent;
         margin: 1;
         padding: 1;
+        height: 6;
     }
     
     .status-panel {
@@ -148,7 +149,7 @@ class AutoJournalTUI(App):
         border: solid $accent;
         margin: 1;
         padding: 1;
-        height: 8;
+        height: 12;
     }
     
     
