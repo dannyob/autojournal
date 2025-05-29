@@ -151,13 +151,6 @@ class AutoJournalTUI(App):
         height: 8;
     }
     
-    .controls {
-        background: $surface;
-        border: solid $accent;
-        margin: 1;
-        padding: 1;
-        height: 12;
-    }
     
     .modal {
         align: center middle;
@@ -219,14 +212,6 @@ class AutoJournalTUI(App):
                 yield Static("Last Activity:", id="activity-label")
                 yield Static("Starting session...", id="last-activity")
             
-            with Container(classes="controls"):
-                yield Static("Controls:", id="controls-label")
-                yield Button("✅ Complete Task (c)", id="complete", variant="success")
-                yield Button("📝 Edit Task (e)", id="edit", variant="primary")
-                yield Button("⏸️ Hold Task (h)", id="hold", variant="warning")
-                yield Button("▶️ Resume Task (r)", id="resume")
-                yield Button("🔄 New Task (n)", id="new-task", variant="primary")
-                yield Button("🏁 End Session (q)", id="quit", variant="error")
         
         yield Footer()
     
@@ -373,20 +358,6 @@ class AutoJournalTUI(App):
             activity_desc = latest.content.split(" | ")[0].replace("✅ ", "").replace("⚠️ ", "")
             self.query_one("#last-activity", Static).update(activity_desc)
     
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        """Handle button presses"""
-        if event.button.id == "complete":
-            self.action_mark_complete()
-        elif event.button.id == "edit":
-            self.action_clarify_task()
-        elif event.button.id == "hold":
-            self.action_hold_task()
-        elif event.button.id == "resume":
-            self.action_resume_task()
-        elif event.button.id == "new-task":
-            self.action_pick_new_task()
-        elif event.button.id == "quit":
-            self.action_quit_app()
     
     def action_mark_complete(self) -> None:
         """Mark current task as complete"""
