@@ -169,6 +169,10 @@ def main():
     parser.add_argument("--list-prompts", action="store_true", help="List all prompt purposes")
     parser.add_argument("--generate-config", action="store_true", help="Generate default configuration file")
     parser.add_argument("--force", action="store_true", help="Force overwrite existing configuration")
+    parser.add_argument("--export-orgmode", nargs="?", const="today", metavar="DATE", 
+                       help="Export journal to orgmode worklog format (default: today, format: YYYY-MM-DD)")
+    parser.add_argument("--journal-file", metavar="PATH", 
+                       help="Specify journal file path for export (overrides date-based lookup)")
     
     args = parser.parse_args()
     
@@ -260,6 +264,32 @@ def main():
     if args.generate_config:
         from autojournal.config import config
         config.generate_default_config(force=args.force)
+        return
+    
+    if args.export_orgmode:
+        from autojournal.journal_manager import OrgmodeExporter
+        from datetime import datetime
+        
+        # Parse date argument
+        if args.export_orgmode == "today":
+            target_date = datetime.now()
+        else:
+            try:
+                target_date = datetime.strptime(args.export_orgmode, "%Y-%m-%d")
+            except ValueError:
+                print(f"Error: Invalid date format '{args.export_orgmode}'. Use YYYY-MM-DD format.")
+                return
+        
+        # Export to orgmode
+        exporter = OrgmodeExporter(args.goals_file)
+        try:
+            if args.journal_file:
+                orgmode_content = exporter.export_journal_file_to_orgmode(args.journal_file, target_date)
+            else:
+                orgmode_content = exporter.export_journal_to_orgmode(target_date)
+            print(orgmode_content)
+        except Exception as e:
+            print(f"Error exporting to orgmode: {e}")
         return
     
     if args.debug:
