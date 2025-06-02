@@ -7,8 +7,6 @@ import asyncio
 import sys
 import argparse
 from pathlib import Path
-from datetime import datetime
-from typing import List, Optional
 
 # Add current directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent))
@@ -148,7 +146,7 @@ class AutoJournal:
             print("\n=== Session Summary ===")
             print(summary)
         except Exception as e:
-            print(f"\n=== Session Summary (Error) ===")
+            print("\n=== Session Summary (Error) ===")
             print(f"Could not generate summary: {e}")
             print("Session ended successfully.")
         

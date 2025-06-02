@@ -1,6 +1,5 @@
 """Journal management and current task tracking"""
 
-import os
 from pathlib import Path
 from datetime import datetime
 from typing import List, Optional

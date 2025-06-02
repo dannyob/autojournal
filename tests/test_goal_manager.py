@@ -1,6 +1,5 @@
 """Tests for GoalManager"""
 
-import pytest
 import tempfile
 from pathlib import Path
 from autojournal.goal_manager import GoalManager

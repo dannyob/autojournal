@@ -4,13 +4,11 @@ import asyncio
 from pathlib import Path
 from textual.app import App, ComposeResult
 from textual.containers import Container, Horizontal, Vertical
-from textual.widgets import Header, Footer, Static, Button, Input, TextArea, OptionList
+from textual.widgets import Header, Footer, Static, Button, Input, OptionList
 from textual.widgets.option_list import Option
 from textual.binding import Binding
 from textual.screen import ModalScreen
-from textual import events
 
-from .models import Task
 from .config import get_setting
 
 

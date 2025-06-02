@@ -2,7 +2,6 @@
 
 import asyncio
 import subprocess
-import tempfile
 import json
 from datetime import datetime
 from pathlib import Path
@@ -15,7 +14,7 @@ except ImportError:
     llm = None
 
 from .models import Task, ActivityAnalysis, JournalEntry
-from .config import get_model, get_setting, get_prompt
+from .config import get_model, get_prompt
 
 
 class ScreenshotAnalyzer:

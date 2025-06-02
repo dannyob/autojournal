@@ -1,8 +1,7 @@
 """Configuration management for AutoJournal AI models and settings"""
 
-import os
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 import json
 
 class AutoJournalConfig:

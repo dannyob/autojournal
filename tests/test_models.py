@@ -1,6 +1,5 @@
 """Tests for data models"""
 
-import pytest
 from datetime import datetime
 from autojournal.models import Task, Goal, ActivityAnalysis, JournalEntry, TaskStatus
 

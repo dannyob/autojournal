@@ -1,10 +1,7 @@
 """Tests for ScreenshotAnalyzer"""
 
-import asyncio
 import pytest
-from unittest.mock import patch, MagicMock, AsyncMock
-import platform
-from datetime import datetime
+from unittest.mock import patch, AsyncMock
 from autojournal.screenshot_analyzer import ScreenshotAnalyzer
 from autojournal.models import Task, ActivityAnalysis
 
