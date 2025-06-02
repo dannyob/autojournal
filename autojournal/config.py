@@ -12,6 +12,7 @@ class AutoJournalConfig:
         "activity_analysis": "gemini-1.5-flash-latest", # For screenshot analysis (vision capable, cost-effective)
         "goal_breakdown": "gpt-4o-mini",                # For breaking goals into tasks
         "session_summary": "claude-3.5-sonnet-latest", # For generating session summaries
+        "orgmode_export": "gpt-4o-mini",               # For converting journal to orgmode worklog
         "fallback": "gpt-3.5-turbo"                    # Fallback model for any failures
     }
     
@@ -132,7 +133,18 @@ Create a summary that includes:
 4. Recommendations for improving focus and efficiency
 5. Overall productivity rating (1-10)
 
-Keep the summary concise but actionable."""
+Keep the summary concise but actionable.""",
+        
+        "orgmode_export": """Convert this journal into a orgmode worklog, based on the TODO categories in the listed onebig orgfile. Identify the actual intended goals, and record CLOCK entries based on successfully non-distracted chunks of time. Create another action, that records in its worklog all the other tasks/distractions that were performed. Make sure that the CLOCK entries for the intended goals and those of the task/distractions exclude each other. Provide timestamps (separate from the clock entries) that list the time spent on other task/directions in the other action. Include in the title of each action a prefix of a timestamp of the date started in the form <{date} HH:MM>. Add a relevant :TAG: to both action entries.
+
+# Goals File (goals.md):
+{goals_content}
+
+# Onebig Org File:
+{onebig_content}
+
+# Journal for {journal_date}:
+{journal_content}"""
     }
     
     def __init__(self):

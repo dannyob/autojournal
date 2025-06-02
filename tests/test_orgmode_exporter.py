@@ -1,148 +1,233 @@
 """Tests for orgmode export functionality"""
 
-from datetime import datetime, time
+import pytest
+from unittest.mock import Mock, patch, mock_open, MagicMock
+from datetime import datetime
+from pathlib import Path
 from autojournal.journal_manager import OrgmodeExporter
+import sys
 
 
 class TestOrgmodeExporter:
-    """Test orgmode export functionality"""
+    """Test orgmode export functionality using LLM"""
     
-    def test_parse_entry_content_task_start(self):
-        """Test parsing task start entries"""
-        exporter = OrgmodeExporter()
-        timestamp = time(9, 30, 0)
-        content = "🎯 Started task: Review code changes (estimated 30 min)"
-        
-        entry = exporter._parse_entry_content(timestamp, content)
-        
-        assert entry['type'] == 'task_start'
-        assert entry['task_description'] == 'Review code changes'
-        assert entry['timestamp'] == timestamp
+    def test_init(self):
+        """Test OrgmodeExporter initialization"""
+        exporter = OrgmodeExporter("test_goals.md")
+        assert exporter.goals_file == Path("test_goals.md")
+        assert exporter.onebig_file == Path("/users/danny/private/nextcloud/org/wiki/onebig.org")
     
-    def test_parse_entry_content_activity_on_task(self):
-        """Test parsing on-task activity entries"""
+    @patch('pathlib.Path.exists')
+    @patch('pathlib.Path.cwd')
+    def test_export_journal_to_orgmode_file_not_found(self, mock_cwd, mock_exists):
+        """Test export when journal file doesn't exist"""
+        mock_cwd.return_value = Path("/test/dir")
+        mock_exists.return_value = False
+        
         exporter = OrgmodeExporter()
-        timestamp = time(9, 35, 0)
-        content = "✅ Reviewing pull request files | App: VS Code | Progress: 25% (85% confidence)"
+        target_date = datetime(2025, 6, 2)
         
-        entry = exporter._parse_entry_content(timestamp, content)
-        
-        assert entry['type'] == 'activity'
-        assert entry['is_on_task'] is True
-        assert entry['app'] == 'VS Code'
-        assert entry['progress'] == 25
+        with pytest.raises(FileNotFoundError, match="Journal file not found"):
+            exporter.export_journal_to_orgmode(target_date)
     
-    def test_parse_entry_content_activity_off_task(self):
-        """Test parsing off-task activity entries"""
+    @patch('pathlib.Path.exists')
+    @patch('pathlib.Path.cwd')
+    def test_export_journal_to_orgmode_calls_export_file(self, mock_cwd, mock_exists):
+        """Test that export_journal_to_orgmode calls export_journal_file_to_orgmode"""
+        mock_cwd.return_value = Path("/test/dir")
+        mock_exists.return_value = True
+        
         exporter = OrgmodeExporter()
-        timestamp = time(9, 40, 0)
-        content = "⚠️ Browsing social media | App: Firefox | Progress: 25% (90% confidence)"
+        target_date = datetime(2025, 6, 2)
         
-        entry = exporter._parse_entry_content(timestamp, content)
+        with patch.object(exporter, 'export_journal_file_to_orgmode') as mock_export:
+            mock_export.return_value = "mocked orgmode content"
+            result = exporter.export_journal_to_orgmode(target_date)
         
-        assert entry['type'] == 'activity'
-        assert entry['is_on_task'] is False
-        assert entry['app'] == 'Firefox'
-        assert entry['progress'] == 25
+        expected_path = "/test/dir/journal-2025-06-02.md"
+        mock_export.assert_called_once_with(expected_path, target_date)
+        assert result == "mocked orgmode content"
     
-    def test_parse_entry_content_task_complete(self):
-        """Test parsing task completion entries"""
-        exporter = OrgmodeExporter()
-        timestamp = time(10, 0, 0)
-        content = "✅ Completed task: Review code changes"
+    @patch('pathlib.Path.exists')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_export_journal_file_to_orgmode_success(self, mock_file, mock_exists):
+        """Test successful export using LLM"""
+        mock_exists.return_value = True
         
-        entry = exporter._parse_entry_content(timestamp, content)
-        
-        assert entry['type'] == 'task_complete'
-        assert entry['task_description'] == 'Review code changes'
-    
-    def test_analyze_work_patterns_single_task(self):
-        """Test analyzing work patterns for a single task"""
-        exporter = OrgmodeExporter()
-        
-        entries = [
-            {
-                'type': 'task_start',
-                'timestamp': time(9, 0, 0),
-                'task_description': 'Write tests'
-            },
-            {
-                'type': 'activity',
-                'timestamp': time(9, 5, 0),
-                'is_on_task': True,
-                'app': 'VS Code',
-                'content': 'Writing test code'
-            },
-            {
-                'type': 'activity',
-                'timestamp': time(9, 10, 0),
-                'is_on_task': False,
-                'app': 'Slack',
-                'content': 'Checking messages'
-            },
-            {
-                'type': 'task_complete',
-                'timestamp': time(9, 30, 0),
-                'task_description': 'Write tests'
-            }
+        # Setup file reads
+        mock_file.return_value.read.side_effect = [
+            "# Goals content",
+            "# Onebig content", 
+            "# Journal content"
         ]
         
-        work_chunks, distractions = exporter._analyze_work_patterns(entries)
+        # Create mock modules
+        mock_llm = MagicMock()
+        mock_config = MagicMock()
         
-        assert len(work_chunks) == 1
-        assert work_chunks[0]['task'] == 'Write tests'
-        assert work_chunks[0]['start_time'] == time(9, 0, 0)
-        assert work_chunks[0]['end_time'] == time(9, 30, 0)
-        assert len(work_chunks[0]['focused_periods']) == 1
-        assert len(work_chunks[0]['distraction_periods']) == 1
-        assert len(distractions) == 1
+        # Setup config mocks
+        mock_config.get_prompt.return_value = "Convert journal: {goals_content} {onebig_content} {journal_content} {date} {journal_date}"
+        mock_config.get_model.return_value = "gpt-4o-mini"
+        
+        # Setup LLM mocks
+        mock_model = Mock()
+        mock_response = Mock()
+        mock_response.text.return_value = "Generated orgmode content"
+        mock_model.prompt.return_value = mock_response
+        mock_llm.get_model.return_value = mock_model
+        
+        # Temporarily add to sys.modules
+        sys.modules['llm'] = mock_llm
+        sys.modules['autojournal.config'] = MagicMock(config=mock_config)
+        
+        try:
+            # Run the test
+            exporter = OrgmodeExporter("goals.md")
+            result = exporter.export_journal_file_to_orgmode("journal.md", datetime(2025, 6, 2))
+            
+            # Verify results
+            assert result == "Generated orgmode content"
+            mock_config.get_prompt.assert_called_once_with("orgmode_export")
+            mock_config.get_model.assert_called_once_with("orgmode_export")
+            mock_llm.get_model.assert_called_once_with("gpt-4o-mini")
+            
+            # Verify prompt was called with correct format
+            expected_prompt = "Convert journal: # Goals content # Onebig content # Journal content 2025-06-02 Mon 2025-06-02"
+            mock_model.prompt.assert_called_once_with(expected_prompt)
+        finally:
+            # Clean up sys.modules
+            if 'llm' in sys.modules:
+                del sys.modules['llm']
+            if 'autojournal.config' in sys.modules:
+                del sys.modules['autojournal.config']
     
-    def test_calculate_focused_time(self):
-        """Test focused time calculation"""
+    @patch('pathlib.Path.exists')
+    @patch('builtins.open')
+    def test_export_journal_file_with_missing_files(self, mock_open_builtin, mock_exists):
+        """Test export when goals or onebig files are missing"""
+        mock_exists.return_value = True
+        
+        # Setup file reading to simulate missing files
+        def open_side_effect(path, *args, **kwargs):
+            path_str = str(path)
+            if "goals" in path_str:
+                raise FileNotFoundError("Goals file not found")
+            elif "onebig" in path_str:
+                raise FileNotFoundError("Onebig file not found")
+            else:
+                return mock_open(read_data="# Journal content")()
+        
+        mock_open_builtin.side_effect = open_side_effect
+        
+        # Create mock modules
+        mock_llm = MagicMock()
+        mock_config = MagicMock()
+        
+        mock_config.get_prompt.return_value = "{goals_content} {onebig_content} {journal_content}"
+        mock_config.get_model.return_value = "gpt-4o-mini"
+        
+        mock_model = Mock()
+        mock_response = Mock()
+        mock_response.text.return_value = "Generated with errors"
+        mock_model.prompt.return_value = mock_response
+        mock_llm.get_model.return_value = mock_model
+        
+        # Temporarily add to sys.modules
+        sys.modules['llm'] = mock_llm
+        sys.modules['autojournal.config'] = MagicMock(config=mock_config)
+        
+        try:
+            exporter = OrgmodeExporter("goals.md")
+            result = exporter.export_journal_file_to_orgmode("journal.md", datetime(2025, 6, 2))
+            
+            # Should still work but with error messages in content
+            assert result == "Generated with errors"
+            # Verify error messages were included in prompt
+            prompt_call = mock_model.prompt.call_args[0][0]
+            assert "Error reading goals file" in prompt_call
+            assert "Error reading onebig file" in prompt_call
+        finally:
+            # Clean up sys.modules
+            if 'llm' in sys.modules:
+                del sys.modules['llm']
+            if 'autojournal.config' in sys.modules:
+                del sys.modules['autojournal.config']
+    
+    @patch('pathlib.Path.exists')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_export_journal_file_fallback_model(self, mock_file, mock_exists):
+        """Test fallback to alternative model when primary fails"""
+        mock_exists.return_value = True
+        mock_file.return_value.read.side_effect = ["# Goals", "# Onebig", "# Journal"]
+        
+        # Create mock modules
+        mock_llm = MagicMock()
+        mock_config = MagicMock()
+        
+        mock_config.get_prompt.return_value = "{goals_content}"
+        mock_config.get_model.side_effect = ["bad-model", "gpt-3.5-turbo"]  # First returns bad model, then fallback
+        
+        # First model fails, second succeeds
+        def get_model_side_effect(model_name):
+            if model_name == "bad-model":
+                raise Exception("Model not found")
+            else:
+                mock_model = Mock()
+                mock_response = Mock()
+                mock_response.text.return_value = "Fallback generated content"
+                mock_model.prompt.return_value = mock_response
+                return mock_model
+        
+        mock_llm.get_model.side_effect = get_model_side_effect
+        
+        # Temporarily add to sys.modules
+        sys.modules['llm'] = mock_llm
+        sys.modules['autojournal.config'] = MagicMock(config=mock_config)
+        
+        try:
+            exporter = OrgmodeExporter("goals.md")
+            result = exporter.export_journal_file_to_orgmode("journal.md", datetime(2025, 6, 2))
+            
+            assert result == "Fallback generated content"
+            # Verify fallback model was used
+            assert mock_llm.get_model.call_count == 2
+            mock_llm.get_model.assert_any_call("bad-model")
+            mock_llm.get_model.assert_any_call("gpt-3.5-turbo")
+        finally:
+            # Clean up sys.modules
+            if 'llm' in sys.modules:
+                del sys.modules['llm']
+            if 'autojournal.config' in sys.modules:
+                del sys.modules['autojournal.config']
+    
+    def test_export_journal_file_not_found(self):
+        """Test export when journal file doesn't exist"""
         exporter = OrgmodeExporter()
         
-        # 6 periods of 10 seconds each = 60 seconds = 1 minute
-        focused_periods = [{'timestamp': time(9, i, 0)} for i in range(6)]
-        
-        total_minutes = exporter._calculate_focused_time(focused_periods)
-        assert total_minutes == 1
+        with pytest.raises(FileNotFoundError, match="Journal file not found"):
+            exporter.export_journal_file_to_orgmode("nonexistent.md", datetime(2025, 6, 2))
     
-    def test_summarize_distractions(self):
-        """Test distraction summarization"""
-        exporter = OrgmodeExporter()
+    @patch('pathlib.Path.exists')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_export_journal_without_llm_library(self, mock_file, mock_exists):
+        """Test error when llm library is not available"""
+        mock_exists.return_value = True
         
-        distractions = [
-            {'app': 'Slack', 'content': 'Checking messages', 'timestamp': time(9, 5, 0)},
-            {'app': 'Slack', 'content': 'Replying to DM', 'timestamp': time(9, 10, 0)},
-            {'app': 'Firefox', 'content': 'Reading news', 'timestamp': time(9, 15, 0)}
-        ]
+        # Mock the import to fail
+        def mock_import(name, *args, **kwargs):
+            if name == 'llm':
+                raise ImportError("No module named 'llm'")
+            return original_import(name, *args, **kwargs)
         
-        summary = exporter._summarize_distractions(distractions)
+        original_import = __builtins__['__import__']
         
-        assert len(summary) == 2
-        assert len(summary['Slack']) == 2
-        assert len(summary['Firefox']) == 1
-    
-    def test_generate_orgmode_content_basic(self):
-        """Test basic orgmode content generation"""
-        exporter = OrgmodeExporter()
-        target_date = datetime(2025, 6, 2, 9, 0, 0)
-        
-        work_chunks = [{
-            'task': 'Write documentation',
-            'start_time': time(9, 0, 0),
-            'end_time': time(10, 0, 0),
-            'focused_periods': [{'timestamp': time(9, i, 0)} for i in range(6)]  # 1 minute
-        }]
-        
-        distractions = [
-            {'app': 'Slack', 'content': 'Checking messages', 'timestamp': time(9, 30, 0)}
-        ]
-        
-        content = exporter._generate_orgmode_content(work_chunks, distractions, target_date)
-        
-        assert '<2025-06-02 Mon 09:00> Write documentation' in content
-        assert 'CLOCK: [2025-06-02 Mon 09:00]--[2025-06-02 Mon 10:00] =>  00:01' in content
-        assert ':TAG: work' in content
-        assert '<2025-06-02 Mon 09:00> Other tasks and distractions' in content
-        assert ':TAG: distraction' in content
+        try:
+            __builtins__['__import__'] = mock_import
+            
+            exporter = OrgmodeExporter()
+            
+            with pytest.raises(ImportError, match="llm library not installed"):
+                exporter.export_journal_file_to_orgmode("journal.md", datetime(2025, 6, 2))
+        finally:
+            # Restore original import
+            __builtins__['__import__'] = original_import

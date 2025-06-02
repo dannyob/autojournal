@@ -17,6 +17,7 @@ AutoJournal uses different AI models for different purposes:
 | `activity_analysis` | `gemini-1.5-flash-latest` | **Vision analysis** of screenshots to determine if you're on-task |
 | `goal_breakdown` | `gpt-4o-mini` | Breaks down high-level goals into actionable tasks |
 | `session_summary` | `claude-3.5-sonnet-latest` | Generates session summaries and productivity insights |
+| `orgmode_export` | `gpt-4o-mini` | Converts journal entries to orgmode worklog format |
 | `fallback` | `gpt-3.5-turbo` | Used when primary models fail |
 
 ### Why These Models?
@@ -89,6 +90,7 @@ python autojournal.py --edit-prompt activity_analysis_vision
 - `activity_analysis_text`: Analyzes activity using only app names  
 - `goal_breakdown`: Converts goals into actionable tasks
 - `session_summary`: Generates productivity insights and summaries
+- `orgmode_export`: Converts journal to orgmode worklog format
 
 ### Customizing Prompts
 
@@ -107,6 +109,13 @@ All prompts support template variables that get filled in at runtime:
 - `{task_context}`: Information about the main task worked on
 - `{activity_summary}`: Timeline of all activities during the session
 
+**Orgmode Export Prompt:**
+- `{date}`: Export date in format "YYYY-MM-DD Day"
+- `{goals_content}`: Contents of the goals.md file
+- `{onebig_content}`: Contents of the onebig.org file
+- `{journal_date}`: Journal date in format "YYYY-MM-DD"
+- `{journal_content}`: Full journal content for the day
+
 **Example: Customizing the vision analysis prompt**
 ```bash
 # Edit the vision analysis prompt
@@ -114,6 +123,60 @@ python autojournal.py --edit-prompt activity_analysis_vision
 
 # Make it more specific to your workflow:
 # "Focus on code quality and testing progress when analyzing development work..."
+```
+
+## Orgmode Export
+
+### Overview
+AutoJournal can export your daily journal to orgmode worklog format, intelligently analyzing your activities to:
+- Identify focused work periods vs distractions
+- Generate CLOCK entries for time tracking
+- Categorize tasks based on your TODO structure in onebig.org
+- Separate productive work from distractions with appropriate tags
+
+### Usage
+```bash
+# Export today's journal
+python autojournal.py --export-orgmode
+
+# Export a specific date
+python autojournal.py --export-orgmode 2025-06-02
+
+# Export a specific journal file
+python autojournal.py --export-orgmode --journal-file /path/to/journal-2025-06-02.md
+```
+
+### Configuration
+```bash
+# Set the model for orgmode export
+python autojournal.py --set-model orgmode_export gpt-4o
+
+# Edit the orgmode export prompt
+python autojournal.py --edit-prompt orgmode_export
+```
+
+### How It Works
+The export feature uses an LLM to:
+1. Read your goals.md file to understand intended tasks
+2. Read your onebig.org file to match activities to TODO categories  
+3. Analyze the journal to identify:
+   - Focused work periods (on-task activities)
+   - Distractions and context switches
+   - Time spent on each activity
+4. Generate orgmode entries with:
+   - Proper timestamps in format `<YYYY-MM-DD Day HH:MM>`
+   - CLOCK entries for time tracking
+   - Relevant :TAG: entries for categorization
+
+### Example Output
+```org
+* <2025-06-02 Mon 12:55> Go through emails and archive all those that do not require action :ADMINISTRIVIA:
+  CLOCK: [2025-06-02 Mon 12:55]--[2025-06-02 Mon 13:12] =>  0:17
+  - Successfully reviewed and processed emails in Superhuman
+
+* <2025-06-02 Mon 12:56> Other tasks and distractions :DISTRACTIONS:
+  - Hacker News browsing: ~15 minutes
+  - Personal administrative tasks: ~25 minutes
 ```
 
 ## Settings
@@ -158,6 +221,7 @@ python autojournal.py --set-model fallback claude-3-haiku
     "activity_analysis": "gemini-1.5-flash-latest",
     "goal_breakdown": "gpt-4o-mini", 
     "session_summary": "claude-3.5-sonnet-latest",
+    "orgmode_export": "gpt-4o-mini",
     "fallback": "gpt-3.5-turbo"
   },
   "settings": {
@@ -171,7 +235,8 @@ python autojournal.py --set-model fallback claude-3-haiku
     "activity_analysis_vision": "Analyze the screenshot to determine...",
     "activity_analysis_text": "Analyze the current activity based on...",
     "goal_breakdown": "Break down the following goal into 3-5...",
-    "session_summary": "Generate a productivity summary..."
+    "session_summary": "Generate a productivity summary...",
+    "orgmode_export": "Convert this journal into a orgmode worklog..."
   }
 }
 ```
