@@ -72,7 +72,13 @@ class TestOrgmodeExporter:
         # Setup LLM mocks
         mock_model = Mock()
         mock_response = Mock()
-        mock_response.text.return_value = "Generated orgmode content"
+        mock_response.text.return_value = """Here's your orgmode export:
+
+```orgmode
+Generated orgmode content
+```
+
+Hope this helps!"""
         mock_model.prompt.return_value = mock_response
         mock_llm.get_model.return_value = mock_model
         
@@ -128,7 +134,11 @@ class TestOrgmodeExporter:
         
         mock_model = Mock()
         mock_response = Mock()
-        mock_response.text.return_value = "Generated with errors"
+        mock_response.text.return_value = """Processing complete:
+
+```
+Generated with errors
+```"""
         mock_model.prompt.return_value = mock_response
         mock_llm.get_model.return_value = mock_model
         
@@ -174,7 +184,11 @@ class TestOrgmodeExporter:
             else:
                 mock_model = Mock()
                 mock_response = Mock()
-                mock_response.text.return_value = "Fallback generated content"
+                mock_response.text.return_value = """Here's the fallback result:
+
+```
+Fallback generated content
+```"""
                 mock_model.prompt.return_value = mock_response
                 return mock_model
         
@@ -231,3 +245,94 @@ class TestOrgmodeExporter:
         finally:
             # Restore original import
             __builtins__['__import__'] = original_import
+    
+    def test_extract_code_blocks_with_code_fence(self):
+        """Test extracting content between markdown code fences"""
+        exporter = OrgmodeExporter()
+        
+        text_with_code = """Here's some explanation text.
+
+```orgmode
+* TODO Task 1
+CLOCK: [2025-06-02 Sun 14:00]--[2025-06-02 Sun 15:00] =>  1:00
+* DONE Task 2
+```
+
+And some more explanation after.
+"""
+        
+        result = exporter._extract_code_blocks(text_with_code)
+        expected = """* TODO Task 1
+CLOCK: [2025-06-02 Sun 14:00]--[2025-06-02 Sun 15:00] =>  1:00
+* DONE Task 2"""
+        
+        assert result == expected
+    
+    def test_extract_code_blocks_with_language_specified(self):
+        """Test extracting code blocks when language is specified"""
+        exporter = OrgmodeExporter()
+        
+        text_with_code = """Here's the result:
+
+```org
+* Meeting Notes
+** Action Items
+```
+
+Done!"""
+        
+        result = exporter._extract_code_blocks(text_with_code)
+        expected = """* Meeting Notes
+** Action Items"""
+        
+        assert result == expected
+    
+    def test_extract_code_blocks_no_code_fence(self):
+        """Test that full text is returned when no code fences are found"""
+        exporter = OrgmodeExporter()
+        
+        text_without_code = """This is just regular text
+with no code blocks at all.
+
+It should be returned as-is."""
+        
+        result = exporter._extract_code_blocks(text_without_code)
+        assert result == text_without_code
+    
+    def test_extract_code_blocks_multiple_fences_returns_first(self):
+        """Test that only the first code block is returned when multiple exist"""
+        exporter = OrgmodeExporter()
+        
+        text_with_multiple = """Here's the first block:
+
+```
+First code block
+with multiple lines
+```
+
+And here's another:
+
+```python
+print("second block")
+```"""
+        
+        result = exporter._extract_code_blocks(text_with_multiple)
+        expected = """First code block
+with multiple lines"""
+        
+        assert result == expected
+    
+    def test_extract_code_blocks_empty_code_fence(self):
+        """Test extracting empty code blocks"""
+        exporter = OrgmodeExporter()
+        
+        text_with_empty = """Empty code block:
+
+```
+
+```
+
+Nothing there."""
+        
+        result = exporter._extract_code_blocks(text_with_empty)
+        assert result == ""

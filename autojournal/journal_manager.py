@@ -298,4 +298,18 @@ class OrgmodeExporter:
         # Run the prompt through the LLM
         response = model.prompt(prompt)
         
-        return response.text()
+        return self._extract_code_blocks(response.text())
+    
+    def _extract_code_blocks(self, text: str) -> str:
+        """Extract content between first markdown code fence (like llm -x option)"""
+        import re
+        
+        # Pattern to match markdown code blocks: ```language\ncontent\n```
+        pattern = r'```(?:[a-zA-Z0-9_+-]*\n)?(.*?)```'
+        match = re.search(pattern, text, re.DOTALL)
+        
+        if match:
+            return match.group(1).strip()
+        else:
+            # If no code blocks found, return the full response
+            return text
