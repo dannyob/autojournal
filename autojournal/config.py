@@ -135,12 +135,12 @@ Create a summary that includes:
 
 Keep the summary concise but actionable.""",
         
-        "orgmode_export": """Convert this journal into a orgmode worklog, based on the TODO categories in the listed onebig orgfile. Identify the actual intended goals, and record CLOCK entries based on successfully non-distracted chunks of time. Create another action, that records in its worklog all the other tasks/distractions that were performed. Make sure that the CLOCK entries for the intended goals and those of the task/distractions exclude each other. Provide timestamps (separate from the clock entries) that list the time spent on other task/directions in the other action. Include in the title of each action a prefix of a timestamp of the date started in the form <{date} HH:MM>. Add a relevant :TAG: to both action entries.
+        "orgmode_export": """Convert this journal into a orgmode worklog, based on the TODO categories in the listed onebig orgfile. Identify the actual intended goals, and record CLOCK entries based on successfully non-distracted chunks of time. Create another action, that records in its worklog all the other tasks/distractions that were performed. Make sure that the CLOCK entries for the intended goals and those of the task/distractions exclude each other. Provide timestamps (separate from the clock entries) that list the time spent on other task/directions in the other action. Include in the title of each action a prefix of a timestamp of the date started in the form <{date} HH:MM>. Add a relevant :TAG: to both action entries. Keep everything in one markdown (```) code block.
 
 # Goals File (goals.md):
 {goals_content}
 
-# Onebig Org File:
+# Org File for :
 {onebig_content}
 
 # Journal for {journal_date}:

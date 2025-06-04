@@ -601,17 +601,24 @@ class AutoJournalTUI(App):
         """End session with progress updates and then exit"""
         try:
             # Update progress
-            self.notify("Generating session summary...")
+            self.notify("Ending session...")
             
-            # End the session (this is the slow part)
-            await self.autojournal_app.end_session()
+            # Create a progress callback that updates the UI
+            def progress_callback(message: str):
+                self.notify(message)
             
-            # Final cleanup
-            self.notify("Cleaning up...")
+            # End the session (this is the slow part) with progress updates
+            await self.autojournal_app.end_session(show_progress_callback=progress_callback)
             
-            # Exit after a brief moment
+            # Reset terminal from TUI state before outputting
+            self._reset_terminal_state()
+            
+            # Final cleanup notification
+            self.notify("Session completed! Check output above.")
+            
+            # Exit after a brief moment to let user see the final message
             import asyncio
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(1.0)
             self.exit()
             
         except Exception as e:
@@ -625,6 +632,26 @@ class AutoJournalTUI(App):
             current_task_file.write_text("")
         except Exception as e:
             print(f"Error clearing current task file: {e}")
+    
+    def _reset_terminal_state(self) -> None:
+        """Reset terminal from TUI state to allow clean output"""
+        import sys
+        
+        # Clear screen and reset cursor
+        sys.stdout.write('\033[2J\033[H')  # Clear screen and move cursor to top
+        
+        # Reset terminal modes that might be set by Textual
+        sys.stdout.write('\033[?1049l')    # Exit alternate screen buffer if active
+        sys.stdout.write('\033[?25h')      # Show cursor
+        sys.stdout.write('\033[0m')        # Reset all formatting
+        
+        # Disable mouse tracking (in case it's still enabled)
+        sys.stdout.write('\033[?1000l')    # Disable basic mouse tracking
+        sys.stdout.write('\033[?1003l')    # Disable all mouse tracking
+        sys.stdout.write('\033[?1015l')    # Disable extended mouse tracking
+        sys.stdout.write('\033[?1006l')    # Disable SGR mouse tracking
+        
+        sys.stdout.flush()
     
     def take_screenshot_and_analyze(self) -> None:
         """Take screenshot and analyze activity (called by timer)"""

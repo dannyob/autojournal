@@ -38,7 +38,7 @@ class AutoJournal:
             print("No goals found in goals file!")
             sys.exit(1)
     
-    async def start_selected_task(self, selected_task: 'Task'):
+    async def start_selected_task(self, selected_task):
         """Start the selected task"""
         self.current_task = selected_task
         
@@ -131,13 +131,16 @@ class AutoJournal:
             
             await self.journal_manager.log_task_resume(self.current_task)
     
-    async def end_session(self):
+    async def end_session(self, show_progress_callback=None):
         """End the session and generate summary"""
         self.running = False
         if self.current_task:
             await self.journal_manager.log_session_end()
         
         # Generate efficiency summary (this is the slow part)
+        if show_progress_callback:
+            show_progress_callback("Generating session summary...")
+        
         try:
             summary = await self.goal_manager.generate_session_summary(
                 self.journal_manager.get_all_entries()
@@ -149,6 +152,24 @@ class AutoJournal:
             print("\n=== Session Summary (Error) ===")
             print(f"Could not generate summary: {e}")
             print("Session ended successfully.")
+        
+        # Generate orgmode export  
+        if show_progress_callback:
+            show_progress_callback("Generating orgmode export...")
+        
+        try:
+            from .journal_manager import OrgmodeExporter
+            from datetime import datetime
+            
+            exporter = OrgmodeExporter(str(self.goals_file))
+            target_date = datetime.now()
+            orgmode_content = exporter.export_journal_to_orgmode(target_date)
+            
+            print("\n=== Orgmode Export ===")
+            print(orgmode_content)
+        except Exception as e:
+            print("\n=== Orgmode Export (Error) ===")
+            print(f"Could not generate orgmode export: {e}")
         
     def stop(self):
         """Stop the monitoring loop"""
@@ -348,7 +369,6 @@ def main():
                 print(f"[DEBUG] Error clearing current task file: {e}")
         
         # Ensure mouse tracking is disabled when exiting
-        import sys
         sys.stdout.write('\033[?1000l')  # Disable basic mouse tracking
         sys.stdout.write('\033[?1003l')  # Disable all mouse tracking  
         sys.stdout.write('\033[?1015l')  # Disable extended mouse tracking
